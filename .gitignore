@@ -1,0 +1,14 @@
+.vscode
+
+.env
+.venv
+*__pycache__*
+.python-version
+
+.ruff-cache
+
+simulation/modules
+files/yolo/dataset/outputs
+files/yolo/models
+
+build

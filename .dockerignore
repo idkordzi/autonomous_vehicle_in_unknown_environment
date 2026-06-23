@@ -1,0 +1,13 @@
+*git*
+REAMDME.md
+
+*docker*
+Dockerfile
+
+*__pycache__*
+
+.vscode
+
+.env
+.venv
+.python-version
