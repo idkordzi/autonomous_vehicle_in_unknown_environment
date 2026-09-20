@@ -1,21 +1,37 @@
 from pathlib import Path
 from ultralytics import YOLO
+from ultralytics.engine.results import Results as YOLOResults
 import cv2
 import numpy as np
 
 
+def prep_image():
+
+    yolo_files: Path = Path(__file__).parents[1].resolve() / "files/yolo"
+    image_path: Path = yolo_files / ...
+    output_path: Path = yolo_files / "dataset/inputs/test_image.jpg"
+
+    img: np.ndarray = cv2.imread(image_path.as_posix(), cv2.IMREAD_COLOR) # 4096 x 3072 (4:3)
+
+    cut_size = int((3072 / 4) / 2) # 384
+    img_cut = img[cut_size:-cut_size, :, :]
+
+    img_resized = cv2.resize(img_cut, (1280, 720))
+    cv2.imwrite(output_path, img_resized)
+
+
 def test_yolo():
 
-    yolo_files: Path = Path(__file__).parents[2].resolve() / "files/yolo"
+    yolo_files: Path = Path(__file__).parents[1].resolve() / "files/yolo"
 
-    model_path: Path = yolo_files / "models/yolo12n.pt"
-    image_path: Path = yolo_files / "dataset/inputs/000000017627.jpg"
+    model_path: Path = yolo_files / "models/yolo26m.onnx"
+    image_path: Path = yolo_files / "dataset/inputs/test_image.jpg"
     labels_path: Path = yolo_files / "dataset/labels/coco.names"
 
-    MIN_CONF: float = 0.5
+    MIN_CONF: float = 0.2
   
-    model: YOLO = YOLO(model_path).eval()
-    model.info()
+    model: YOLO = YOLO(model_path, task="detect")
+    # model.info() # use only when using *.pt model
 
     img: np.ndarray = cv2.imread(image_path.as_posix(), cv2.IMREAD_COLOR)
     cv2.imshow("Input preview", img)
@@ -28,7 +44,7 @@ def test_yolo():
             if len(line) > 1:
                 labels[ci] = line
 
-    results: list = model(img)
+    results: list[YOLOResults] = model.predict(source=img, device=0)
     for result in results:
         for di in range(len(result)):
             xyxy = result.boxes.xyxy[di].cpu().numpy()
@@ -38,7 +54,7 @@ def test_yolo():
             if conf < MIN_CONF: continue
 
             xyxy = [int(el) for el in xyxy]
-            tx = f"{labels[int(name)]}: {conf*100:0.2f}%"
+            tx = f"{labels[int(name)]} [{int(name)}]: {conf*100:0.2f}%"
             ts = cv2.getTextSize(tx, cv2.FONT_HERSHEY_SIMPLEX, 0.5, 1)[0]
 
             cv2.rectangle(cimg, (xyxy[0], xyxy[1]), (xyxy[2], xyxy[3]), (0,0,255), 1)
@@ -51,4 +67,5 @@ def test_yolo():
   
 
 if __name__ == "__main__":
+    # prep_image()
     test_yolo()

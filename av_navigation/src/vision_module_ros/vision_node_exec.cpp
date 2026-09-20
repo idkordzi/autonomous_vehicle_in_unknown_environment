@@ -1,10 +1,9 @@
-#include "drone_vision_ros.hpp"
+#include "vision_node.hpp"
 
 
-int main(int argc, char* argv[])
-{
-  rclcpp::init(argc, argv);
-  rclcpp::spin(std::make_shared<DRONE_NAVIGATION::DroneVisionROS>(rclcpp::NodeOptions()));
-  rclcpp::shutdown();
-  return 0;
+int main(int argc, char* argv[]) {
+    rclcpp::init(argc, argv);
+    rclcpp::spin(std::make_shared<NAVIGATION_ROS::VisionModuleNode>(rclcpp::NodeOptions()));
+    rclcpp::shutdown();
+    return 0;
 }

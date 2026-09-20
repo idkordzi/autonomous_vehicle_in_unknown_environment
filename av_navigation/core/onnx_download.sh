@@ -3,12 +3,11 @@
 set -euo pipefail
 
 CURRENT_DIR=$(cd "$(dirname "$0")" && pwd)
-# CURRENT_DIR=$(pwd)
 
 # Default values
 ONNXRUNTIME_VERSION="${1:-1.20.1}"
 ONNXRUNTIME_GPU="${2:-0}"
-ONNXRUNTIME_DIR="${3:-"${CURRENT_DIR}/build/_deps/lib_onnx"}"
+ONNXRUNTIME_DIR_FINAL="${3:-"${CURRENT_DIR}/build/_deps/lib_onnx"}"
 
 # Function to display usage
 usage() {
@@ -39,10 +38,16 @@ architecture=$(uname -m)
 case "$platform" in
 Darwin*)
     ONNXRUNTIME_PLATFORM="osx"
-    ONNXRUNTIME_GPU=0
+	ONNXRUNTIME_ARCHIVE_EXTENSION="tgz"
     ;;
-Linux*) ONNXRUNTIME_PLATFORM="linux" ;;
-MINGW*) ONNXRUNTIME_PLATFORM="win" ;;
+Linux*) 
+    ONNXRUNTIME_PLATFORM="linux"
+	ONNXRUNTIME_ARCHIVE_EXTENSION="tgz"
+    ;;
+MINGW*) 
+    ONNXRUNTIME_PLATFORM="win"
+	ONNXRUNTIME_ARCHIVE_EXTENSION="zip"
+    ;;
 *)
     echo "Unsupported platform: $platform"
     exit 1
@@ -50,65 +55,72 @@ MINGW*) ONNXRUNTIME_PLATFORM="win" ;;
 esac
 
 # Determine ONNX Runtime architecture
-if [[ "$architecture" == "aarch64" || "$architecture" == "arm64" ]]; then
-    ONNXRUNTIME_GPU=0
-    if [[ "$ONNXRUNTIME_PLATFORM" == "linux" ]]; then
-        ONNXRUNTIME_ARCH="aarch64"
-    else
-        ONNXRUNTIME_ARCH="arm64"
-    fi
-elif [[ "$architecture" == "x86_64" ]]; then
-    if [[ "$ONNXRUNTIME_PLATFORM" == "win" ]]; then
-        ONNXRUNTIME_ARCH="x64"
-    else
-        ONNXRUNTIME_ARCH="x64"
-    fi
-elif [[ "$architecture" == arm* ]]; then
-    ONNXRUNTIME_GPU=0
+case "$architecture" in
+aarch64|arm64)
+    ONNXRUNTIME_ARCH="aarch64"
+    ;;
+x86_64)
+    ONNXRUNTIME_ARCH="x64"
+    ;;
+arm*)
     ONNXRUNTIME_ARCH="arm"
-elif [[ "$architecture" == i*86 ]]; then
-    ONNXRUNTIME_GPU=0
+    ;;
+i*86)
     ONNXRUNTIME_ARCH="x86"
-else
+    ;;
+*)
     echo "Unsupported architecture: $architecture"
     exit 1
+    ;;
+esac
+
+# Set the correct ONNX Runtime download filename
+ONNXRUNTIME_FILE="onnxruntime-${ONNXRUNTIME_PLATFORM}-${ONNXRUNTIME_ARCH}"
+ONNXRUNTIME_DIR="${CURRENT_DIR}/onnxruntime-${ONNXRUNTIME_PLATFORM}-${ONNXRUNTIME_ARCH}"
+
+if [[ "$ONNXRUNTIME_GPU" -eq 1 ]]; then
+    ONNXRUNTIME_FILE="${ONNXRUNTIME_FILE}-gpu"
+    ONNXRUNTIME_DIR="${ONNXRUNTIME_DIR}-gpu"
 fi
 
-# Determine ONNX Runtime path
-if [ "$ONNXRUNTIME_GPU" -eq 1 ]; then
-    ONNXRUNTIME_PATH="onnxruntime-${ONNXRUNTIME_PLATFORM}-${ONNXRUNTIME_ARCH}-gpu-${ONNXRUNTIME_VERSION}"
-else
-    ONNXRUNTIME_PATH="onnxruntime-${ONNXRUNTIME_PLATFORM}-${ONNXRUNTIME_ARCH}-${ONNXRUNTIME_VERSION}"
-fi
-
-echo "ONNX runtime download configuration:"
-echo "  PATH: ${ONNXRUNTIME_DIR}"
-echo "  VER : ${ONNXRUNTIME_VERSION}"
-echo "  GPU : ${ONNXRUNTIME_GPU}"
+ONNXRUNTIME_FILE="${ONNXRUNTIME_FILE}-${ONNXRUNTIME_VERSION}.${ONNXRUNTIME_ARCHIVE_EXTENSION}"
+ONNXRUNTIME_DIR="${ONNXRUNTIME_DIR}-${ONNXRUNTIME_VERSION}"
+ONNXRUNTIME_URL="https://github.com/microsoft/onnxruntime/releases/download/v${ONNXRUNTIME_VERSION}/${ONNXRUNTIME_FILE}"
 
 # Function to download and extract ONNX Runtime
 download_onnxruntime() {
-    local url="https://github.com/microsoft/onnxruntime/releases/download/v${ONNXRUNTIME_VERSION}/${ONNXRUNTIME_PATH}.tgz"
-    echo "Downloading ONNX Runtime from $url ..."
-    if ! curl -L -O -C - "$url"; then
-        echo "Failed to download ONNX Runtime."
+    echo "Downloading ONNX Runtime from $ONNXRUNTIME_URL ..."
+    
+    if ! curl -L -C - -o "${ONNXRUNTIME_FILE}" "$ONNXRUNTIME_URL"; then
+        echo "Error: Failed to download ONNX Runtime."
         exit 1
     fi
 
-    echo "Extracting ONNX Runtime to ${ONNXRUNTIME_DIR}"
-    if ! tar -zxvf "${ONNXRUNTIME_PATH}.tgz"; then
-        echo "Failed to extract ONNX Runtime."
-        exit 1
-    fi
+    echo "Extracting ONNX Runtime ..."
+	if [[ "${ONNXRUNTIME_ARCHIVE_EXTENSION}" = "tgz" ]]; then
+		if ! tar -zxvf "${ONNXRUNTIME_FILE}" -C "$CURRENT_DIR"; then
+			echo "Error: Failed to extract ONNX Runtime."
+			exit 1
+		fi
+	elif [[ "${ONNXRUNTIME_ARCHIVE_EXTENSION}" = "zip" ]]; then
+		if ! unzip "${ONNXRUNTIME_FILE}" -d "$CURRENT_DIR"; then
+			echo "Error: Failed to extract ONNX Runtime."
+			exit 1
+		fi
+	else
+		echo "Error: Failed to extract ONNX Runtime."
+		exit 1
+	fi
 
-    mv $ONNXRUNTIME_PATH/* $ONNXRUNTIME_DIR
-
-    rm -rf "${ONNXRUNTIME_PATH}.tgz" $ONNXRUNTIME_PATH
+    rm -f "${ONNXRUNTIME_FILE}"
+    mv "${ONNXRUNTIME_DIR}" "${ONNXRUNTIME_DIR_FINAL}"
 }
 
 # Main script execution
-if [ -d "$ONNXRUNTIME_DIR" ]; then
+if [ ! -d "$ONNXRUNTIME_DIR" ]; then
     download_onnxruntime
-else 
-    echo "${ONNXRUNTIME_DIR} does not exits!"
+else
+    echo "ONNX Runtime already exists. Skipping download."
 fi
+
+echo "Build completed successfully."

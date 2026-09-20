@@ -1,14 +1,19 @@
 .vscode
 
+__pycache__
+.ruff-cache
+.python-version
 .env
 .venv
-*__pycache__*
-.python-version
 
-.ruff-cache
-
-simulation/modules
-files/yolo/dataset/outputs
-files/yolo/models
+av_navigation/core/onnxruntime
+av_navigation/core/test_data
+av_navigation/yolo
+python/files/yolo/dataset/inputs
+python/files/yolo/dataset/outputs
+python/files/yolo/models
+python/files/evaluation
 
 build
+install
+log

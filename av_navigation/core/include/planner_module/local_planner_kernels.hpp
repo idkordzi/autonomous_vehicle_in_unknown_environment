@@ -3,10 +3,13 @@
 
 namespace NAVIGATION_CORE_KERNELS {
 
+
 #define GRID_SIZE 1
 #define BLOCK_SIZE 128
 
+
 constexpr float rad2deg = 180.0f / 3.1415926535897932f;
+
 
 struct KernelsConfig {
     unsigned alpha = 0;
@@ -21,6 +24,7 @@ struct KernelsConfig {
     float fov_h = 0.0f;
     float fov_v = 0.0f;
 };
+
 
 class LocalPlannerKernels {
 
@@ -55,5 +59,6 @@ protected:
     float* d_age_histogram_ = NULL;
     int* d_counter_ = NULL;
 };
+
 
 } // namespace NAVIGATION_CORE_KERNELS

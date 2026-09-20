@@ -133,3 +133,7 @@ sudo sh -c 'echo "deb http://packages.ros.org/ros/ubuntu `lsb_release -sc` main"
 wget http://packages.ros.org/ros.key -O - | sudo apt-key add -
 sudo apt-get update
 sudo apt-get install python3-catkin-tools
+
+# robot localization (ekf)
+sudo apt update
+sudo apt install ros-jazzy-robot-localization

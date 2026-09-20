@@ -3,12 +3,14 @@
 
 namespace NAVIGATION_CORE {
 
+
 bool pointInsideFOV(const FOV& fov, const PolarPoint& polar) {
     return polar.azim <= fov.yaw_deg + fov.h_fov_deg / 2.0f &&
            polar.azim >= fov.yaw_deg - fov.h_fov_deg / 2.0f &&
            polar.elev <= fov.pitch_deg + fov.v_fov_deg / 2.0f &&
            polar.elev >= fov.pitch_deg - fov.v_fov_deg / 2.0f;
 }
+
 
 bool pointInsideFOV(const FOV& fov, const Eigen::Vector3f& point) {
     float den = point.topRows<2>().norm();
@@ -20,6 +22,7 @@ bool pointInsideFOV(const FOV& fov, const Eigen::Vector3f& point) {
            elev >= fov.pitch_deg - fov.v_fov_deg / 2.0f;
 }
 
+
 bool pointInsideFOV(const FOV& fov, const Eigen::Vector3f& point, const Eigen::Vector3f& origin) {
     float den = (point.topRows<2>() - origin.topRows<2>()).norm();
     float elev = std::atan2(point.z() - origin.z(), den) * RAD_TO_DEG;
@@ -30,6 +33,7 @@ bool pointInsideFOV(const FOV& fov, const Eigen::Vector3f& point, const Eigen::V
            elev >= fov.pitch_deg - fov.v_fov_deg / 2.0f;
 }
 
+
 PolarPoint convertCartesianToPolar(const Eigen::Vector3f& point) {
     PolarPoint polar(0.0f, 0.0f, 0.0f);
     float den = point.topRows<2>().norm();
@@ -38,6 +42,7 @@ PolarPoint convertCartesianToPolar(const Eigen::Vector3f& point) {
     polar.radi = point.norm();
     return polar;
 }
+
 
 PolarPoint convertCartesianToPolar(const Eigen::Vector3f& point, const Eigen::Vector3f& origin) {
     PolarPoint polar(0.0f, 0.0f, 0.0f);
@@ -48,6 +53,7 @@ PolarPoint convertCartesianToPolar(const Eigen::Vector3f& point, const Eigen::Ve
     return polar;
 }
 
+
 Eigen::Vector3f convertPolarToCartesian(const PolarPoint& polar) {
     Eigen::Vector3f point;
     point.x() = polar.radi * std::cos(polar.elev * DEG_TO_RAD) * std::cos(polar.azim * DEG_TO_RAD);
@@ -55,7 +61,8 @@ Eigen::Vector3f convertPolarToCartesian(const PolarPoint& polar) {
     point.z() = polar.radi * std::sin(polar.elev * DEG_TO_RAD);
     return point;
 }
-    
+
+
 Eigen::Vector3f convertPolarToCartesian(const PolarPoint& polar, const Eigen::Vector3f& origin) {
     Eigen::Vector3f point;
     point.x() = origin.x() + polar.radi * std::cos(polar.elev * DEG_TO_RAD) * std::cos(polar.azim * DEG_TO_RAD);
@@ -63,7 +70,8 @@ Eigen::Vector3f convertPolarToCartesian(const PolarPoint& polar, const Eigen::Ve
     point.z() = origin.z() + polar.radi * std::sin(polar.elev * DEG_TO_RAD);
     return point;
 }
-    
+
+
 // void wrapPolar(PolarPoint& polar) {
 //   polar.elev = wrapRange(polar.elev, 180.0f);
 //   polar.azim = wrapRange(polar.azim, 360.0f);
@@ -104,9 +112,11 @@ Eigen::Vector3f convertPolarToCartesian(const PolarPoint& polar, const Eigen::Ve
 //   return idx;
 // }
 
+
 float angleDifference(float a, float b) {
     float angle = std::fmod(a - b, 360.0f);
     return angle >= 0.0f ? ( (angle < 180.0f) ? angle : angle - 360.0f ) : ( (angle >= -180.0f) ? angle : angle + 360.f );
 }
 
-}  // namespace NAVIGATION_CORE
+
+} // namespace NAVIGATION_CORE

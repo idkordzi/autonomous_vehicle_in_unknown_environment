@@ -1,0 +1,21 @@
+/mock_publisher_node:
+    ros__parameters:
+        ros_node:
+            sensors:
+                camera:
+                    pubs:
+                        color: /robot/sensors/camera/color
+                        depth: /robot/sensors/camera/depth
+                        cloud: /robot/sensors/camera/cloud
+                    freq: 30.0
+                    image:
+                        width: 1280
+                        height: 720
+                imu:
+                    pubs:
+                        data: /robot/sensors/imu/data
+                    freq: 100.0
+                odometry:
+                    pubs:
+                        wheels: /robot/sensors/odometry/wheels
+                    freq: 100.0

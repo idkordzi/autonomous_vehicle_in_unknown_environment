@@ -3,15 +3,18 @@
 
 namespace NAVIGATION_CORE {
 
+
 PolarHistogram::PolarHistogram() {
     this->clear();
 }
+
 
 PolarHistogram::PolarHistogram(int alpha)
 : alpha_{alpha}, azim_dim_{360 / alpha}, elev_dim_{180 / alpha}, distance_(elev_dim_, azim_dim_), age_(elev_dim_, azim_dim_)
 {
     this->clear();
 }
+
 
 void PolarHistogram::upsample() {
     if (this->alpha_ % 2 != 0) {
@@ -32,6 +35,7 @@ void PolarHistogram::upsample() {
     this->distance_ = new_histogram;
 }
 
+
 void PolarHistogram::downsample() {
     if (this->azim_dim_ % 2 != 0 || this->elev_dim_ % 2 != 0) {
         throw std::logic_error("Invalid use of function downsample(). Histogram resulotion for elevation and azimuth must be divisable by 2.");
@@ -51,10 +55,12 @@ void PolarHistogram::downsample() {
     this->distance_ = new_histogram;
 }
 
+
 void PolarHistogram::clear() {
     this->distance_.fill(0.0f);
     this->age_.fill(0.0f);
 }
+
 
 bool PolarHistogram::isEmpty() const {
     bool is_empty = true;
@@ -65,5 +71,6 @@ bool PolarHistogram::isEmpty() const {
     }
     return is_empty;
 }
+
 
 } // namespace NAVIGATION_CORE

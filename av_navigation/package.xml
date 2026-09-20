@@ -1,6 +1,6 @@
 <?xml version="1.0"?>
 <package format="3">
-  <name>av_navigation</name>
+  <name>av_navigation_ros</name>
   <version>1.0.0</version>
   <description>TBD</description>
   <maintainer email="igor.kordzi@gmail.com">Igor Kordzi</maintainer>
@@ -17,6 +17,7 @@
   <depend>std_msgs</depend>
   <depend>geometry_msgs</depend>
   <depend>sensor_msgs</depend>
+  <depend>nav_msgs</depend>
 
   <depend>cv_bridge</depend>
 

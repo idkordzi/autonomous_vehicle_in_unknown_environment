@@ -3,181 +3,133 @@
 
 namespace NAVIGATION_CORE {
 
-LocalPlanner::LocalPlanner() {
-    this->initialize();
-}
 
 LocalPlanner::LocalPlanner(LocalPlannerConfig config) : config_(config) {
-    this->initialize();
+    this->initialize_();
 }
 
-void LocalPlanner::initialize() {
-    this->fov_ = FOV(0.0f, 0.0f, this->config_.camera_fov_h, this->config_.camera_fov_v);
-    this->translation_flatten_[0]  = 1.0f; // [1,1]
-    this->translation_flatten_[5]  = 1.0f; // [2,2]
-    this->translation_flatten_[10] = 1.0f; // [3,3]
-    this->last_processing_time_ = std::chrono::system_clock::now();
 
-    this->drone_ready_ = false;
+void LocalPlanner::initialize_() {
 
     this->histogram_ = PolarHistogram(this->config_.alpha);
-    this->hist_image_ = cv::Mat(this->histogram_.getElevRes(), this->histogram_.getAzimRes(), CV_8UC3, cv::Scalar(0,0,0));
-    this->cost_image_ = cv::Mat(this->histogram_.getElevRes(), this->histogram_.getAzimRes(), CV_8UC3, cv::Scalar(0,0,0));
+    this->image_histogram_ = cv::Mat(this->histogram_.getElevRes(), this->histogram_.getAzimRes(), CV_8UC3, cv::Scalar(0,0,0));
+    this->image_cost_ = cv::Mat(this->histogram_.getElevRes(), this->histogram_.getAzimRes(), CV_8UC3, cv::Scalar(0,0,0));
+
+    this->reset();
 
     NAVIGATION_CORE_KERNELS::KernelsConfig k_config;
     k_config.alpha = this->config_.alpha;
     k_config.elev_res = this->histogram_.getElevRes();
     k_config.azim_res = this->histogram_.getAzimRes();
     k_config.flat_size = k_config.elev_res * k_config.azim_res;
-    k_config.min_distance = this->config_.sensor_min_range;
-    k_config.max_distance = this->config_.sensor_max_range;
+    k_config.min_distance = this->config_.sensor_range_min;
+    k_config.max_distance = this->config_.sensor_range_max;
     k_config.max_age = this->config_.point_max_age;
     this->kernels_ = std::make_unique<NAVIGATION_CORE_KERNELS::LocalPlannerKernels>(k_config);
 }
 
-void LocalPlanner::setState(Eigen::Vector3f position, Eigen::Vector3f orientation, Eigen::Vector3f velocity) {
+
+void LocalPlanner::setState(Eigen::Vector3f position, Eigen::Vector4f orientation, Eigen::Vector3f velocity) {
 
     this->prev_position_ = this->position_;
 
-    this->position_     = position;
-    this->orientation_  = orientation;
-    this->lin_velocity_ = velocity;
+    this->position_ = position;
+    this->orientation_ = orientation;
+    this->velocity_ = velocity;
 
-    float cr = 20.0f / 180.0f * PI_F;
-
-    Eigen::Quaternionf rotation = Eigen::AngleAxisf(this->orientation_.z(), Eigen::Vector3f::UnitZ()) *
-                                  Eigen::AngleAxisf(this->orientation_.y() - cr, Eigen::Vector3f::UnitY()) *
-                                  Eigen::AngleAxisf(this->orientation_.x(), Eigen::Vector3f::UnitX());
-
-    this->rotation_matrix_ = rotation.normalized().toRotationMatrix();
-  
-    for (short i=0; i<3; i++) {
-        for (short j=0; j<3; j++)
-            this->translation_flatten_[i*4+j] = this->rotation_matrix_(i,j);
-        this->translation_flatten_[i*4+3] = this->position_[i];
-    }
-
-    this->fov_.yaw_deg = this->orientation_.z() * RAD_TO_DEG;
-    this->fov_.pitch_deg = this->orientation_.y() * RAD_TO_DEG;
+    Eigen::Vector3f euler = Eigen::Quaternionf(orientation).normalized().toRotationMatrix().eulerAngles(0, 1, 2);
+    this->fov_.pitch_deg = euler.y() * RAD_TO_DEG;
+    this->fov_.yaw_deg = euler.z() * RAD_TO_DEG;
 
     this->state_updated_ = true;
 }
 
-void LocalPlanner::setGoal(Eigen::Vector3f goal) {
-    if (std::isnan(goal.x()) || std::isnan(goal.y()) || std::isnan(goal.z())) {
-        // return;
-        goal = this->goal_pred_;
-    }
 
-    Eigen::Vector3f new_goal = this->rotation_matrix_ * goal + this->position_;
-    
+void LocalPlanner::setTarget(Eigen::Vector3f goal) {
+
+    Eigen::Vector3f new_goal = goal;
     if ((this->goal_ - new_goal).norm() > this->config_.goal_dev_margin) {
-
-        this->prev_goal_array_.push_back(new_goal);
-        if (this->prev_goal_array_.size() > this->config_.prev_goal_num)
-            this->prev_goal_array_ = std::vector<Eigen::Vector3f>(this->prev_goal_array_.begin()+1, this->prev_goal_array_.end());
-        this->predictNewGoal();
-    
         this->goal_ = new_goal;
 
         PolarPoint facing_goal = convertCartesianToPolar(this->goal_, this->position_);
-        PolarPoint desired_pos = PolarPoint(std::asin(this->config_.goal_min_alt_diff / this->config_.goal_min_dist) * RAD_TO_DEG,
-                                            facing_goal.azim + 180.0f, 
-                                            this->config_.goal_min_dist);
+        PolarPoint desired_pos = PolarPoint(
+            facing_goal.elev,
+            facing_goal.azim + 180.0f,
+            this->config_.goal_min_dist
+        );
         wrapPolar(desired_pos);
         this->goal_pos_ = convertPolarToCartesian(desired_pos, this->goal_);
-
         this->goal_updated_ = true;
     }
     else
         this->goal_updated_ = false;
+    
 }
 
-void LocalPlanner::setPointCloud(const PointCloud<PointXYZ>& cloud) {
+
+void LocalPlanner::setPointCloud(PointCloud<PointXYZ>& cloud) {
     this->cloud_cache_.clear();
-    for (auto &point : cloud) {
-        this->cloud_cache_.push_back(this->transformPoint(point));
-    }
+    for (size_t i = 0; i < cloud.size(); i++)
+        this->cloud_cache_.push_back(PointXYZ(cloud[i]));
     this->cloud_updated_ = true;
 }
 
+
 void LocalPlanner::run() {
 
-    if (this->drone_ready_) {
-        // Drone away from final goal
-        if ((this->goal_pos_-this->position_).norm() > this->config_.drone_pos_margin) {
-            if (this->goal_updated_ || this->cloud_updated_) {
-                this->processPointCloud();
-            }
-            this->planNext();
-        }
-        // Drone within acceptable margin
-        else {
-            this->next_ = this->goal_pos_;
-        }
+    // away from goal position
+    if ((this->goal_pos_-this->position_).norm() > this->config_.robot_pos_margin) {
+        if (this->goal_updated_ || this->cloud_updated_)
+            this->processPointCloud_();
+        this->planNext_();
     }
+    // within acceptable margin
     else {
-        this->next_ = Eigen::Vector3f(0.0f, 0.0f, this->config_.init_altitude);
-        if (this->position_.z() > this->config_.init_altitude-0.1f)
-            this->drone_ready_ = true;
+        this->next_ = this->goal_pos_;
     }
 }
+
 
 Eigen::Vector3f LocalPlanner::getNext() const {
     return this->next_;
 };
 
-PointXYZ LocalPlanner::transformPoint(PointXYZ point) const {
-    // Eigen::Vector3f rotated = this->rotation_matrix_ * Eigen::Vector3f(point.x, point.y, point.z) + this->position_;
-    // return PointXYZ(rotated.x(), rotated.y(), rotated.z());
 
-    float x = point.x * this->translation_flatten_[0] +
-              point.y * this->translation_flatten_[1] +
-              point.z * this->translation_flatten_[2] +
-              this->translation_flatten_[3];
-    float y = point.x * this->translation_flatten_[4] +
-              point.y * this->translation_flatten_[5] +
-              point.z * this->translation_flatten_[6] +
-              this->translation_flatten_[7];
-    float z = point.x * this->translation_flatten_[8] +
-              point.y * this->translation_flatten_[9] +
-              point.z * this->translation_flatten_[10] +
-              this->translation_flatten_[11];
-    return PointXYZ(x, y, z);
+cv::Mat LocalPlanner::getHistogramImage() const {
+    return this->image_histogram_;
 }
 
-void LocalPlanner::predictNewGoal() {
 
-    if (this->prev_goal_array_.size() < this->config_.prev_goal_num) return;
-
-    static std::chrono::system_clock::time_point last_pred;
-
-    double dt = (std::chrono::system_clock::now() - last_pred).count();
-
-    std::vector<Eigen::Vector3f> velArr;
-    Eigen::Vector3f velMean = Eigen::Vector3f::Zero();
-    for (unsigned i = 0; i < this->config_.prev_goal_num-1; i++) {
-        Eigen::Vector3f vel = this->prev_goal_array_[i+1] - this->prev_goal_array_[i];
-        velArr.push_back(vel);
-        velMean += vel;
-    }
-    velMean /= velArr.size();
-
-    std::vector<Eigen::Vector3f> accArr;
-    Eigen::Vector3f accMean = Eigen::Vector3f::Zero();
-    for (unsigned i = 0; i < this->config_.prev_goal_num-2; i++) {
-        Eigen::Vector3f acc = velArr[i+1] - velArr[i];
-        accArr.push_back(acc);
-        accMean += acc;
-    }
-    accMean /= accArr.size();
-
-    this->goal_pred_ = this->prev_goal_array_[this->config_.prev_goal_num-1] + velMean * dt + 0.5 * accMean * dt * dt;
-
-    last_pred = std::chrono::system_clock::now();
+cv::Mat LocalPlanner::getCostImage() const {
+    return this->image_cost_;
 }
 
-void LocalPlanner::processPointCloud() {
+
+void LocalPlanner::reset() {
+
+    this->goal_ = Eigen::Vector3f::Zero();
+    this->goal_pos_ = Eigen::Vector3f::Zero();;
+    this->next_ = Eigen::Vector3f::Zero();;
+
+    this->position_ = Eigen::Vector3f::Zero();
+    this->orientation_ = Eigen::Vector4f(0.0f, 0.0f, 0.0f, 1.0f);
+    this->velocity_ = Eigen::Vector3f::Zero();
+    this->prev_position_ = Eigen::Vector3f::Zero();
+
+    this->fov_ = FOV(0.0f, 0.0f, this->config_.camera_fov_h, this->config_.camera_fov_v);
+
+    this->state_updated_ = false;
+    this->goal_updated_ = false;
+    this->cloud_updated_ = false;
+
+    this->cloud_cache_.clear();
+    this->last_processing_time_ = std::chrono::system_clock::now();
+
+    this->histogram_.clear();
+}
+
+
+void LocalPlanner::processPointCloud_() {
 
     int h_alpha = this->histogram_.getAlpha();
     int h_elev = this->histogram_.getElevRes();
@@ -189,14 +141,14 @@ void LocalPlanner::processPointCloud() {
     PolarHistogram new_histogram = PolarHistogram(h_alpha);
     new_histogram.fillAge(INFINITY);
 
-    float min_range_sq = sqr(this->config_.sensor_min_range);
-    float max_range_sq = sqr(this->config_.sensor_max_range);
+    float min_range_sq = sqr(this->config_.sensor_range_min);
+    float max_range_sq = sqr(this->config_.sensor_range_max);
 
     std::chrono::duration<double> time_passed = std::chrono::system_clock::now() - this->last_processing_time_;
     double elapsed = time_passed.count();
 
     if (this->cloud_updated_) {
-        if (this->config_.en_cuda) {
+        if (this->config_.enable_cuda) {
 
         const float* k_point_cloud = (const float*)this->cloud_cache_.cloud_.data();
         this->kernels_->processIncomingPointCloud(k_point_cloud, this->cloud_cache_.size());
@@ -272,46 +224,42 @@ void LocalPlanner::processPointCloud() {
     }
 
     this->histogram_ = new_histogram;
-    this->generateHistImage(this->histogram_, this->hist_image_);
+    this->generateHistogramImage_(this->histogram_, this->image_histogram_);
     
     this->last_processing_time_ = std::chrono::system_clock::now();
     this->cloud_updated_ = false;
 }
 
-CostFunctionOutput LocalPlanner::costFunction(
+
+CostFunctionOutput LocalPlanner::costFunction_(
     const PolarPoint& candidate,
     const Eigen::Vector3f& position,
     const Eigen::Vector3f& velocity, 
-    float obstacle_distance) const
-{
+    float obstacle_distance
+) const {
+
+    float d = this->config_.obstacle_distance_min - obstacle_distance;
+    float distance_cost = obstacle_distance > 0.0f ? this->config_.cost_obstacle_distance * (1 + d / std::sqrt(1 + d * d)) : 0.0f;
+
+    Eigen::Vector3f candidate_velocity_cartesian = convertPolarToCartesian(candidate);
+    float velocity_cost = this->config_.cost_velocity * (velocity.norm() - candidate_velocity_cartesian.normalized().dot(velocity));
+
     PolarPoint facing_goal = convertCartesianToPolar(this->goal_pos_, position);
     float angle_diff = angleDifference(candidate.azim, facing_goal.azim);
+    float yaw_cost = this->config_.cost_yaw * sqr(angle_diff);
 
-    float goal_distance = (this->goal_pos_ - position).norm();
-    Eigen::Vector3f candidate_velocity_cartesian = convertPolarToCartesian(candidate);
-
-    float velocity_cost = this->config_.velocity_cost_param * (velocity.norm() - candidate_velocity_cartesian.normalized().dot(velocity));
-
-    float yaw_cost   = this->config_.yaw_cost_param * sqr(angle_diff);
-    float pitch_cost = this->config_.pitch_cost_param * sqr(candidate.elev - facing_goal.elev);
-
-    // Increase the pitch cost starting at 5m from the goal (forcing the drone to goal altitude)
-    if (goal_distance < this->config_.pitch_block_distance)
-        pitch_cost = pitch_cost * sqr(this->config_.pitch_block_distance) / sqr(goal_distance);
-
-    float d = this->config_.obstacle_min_distance - obstacle_distance;
-    float distance_cost = obstacle_distance > 0.0f ? this->config_.obstacle_cost_param * (1 + d / std::sqrt(1 + d * d)) : 0.0f;
-
-    return CostFunctionOutput(distance_cost, velocity_cost + yaw_cost + pitch_cost);
+    return CostFunctionOutput(distance_cost, velocity_cost + yaw_cost);
 }
 
-void LocalPlanner::getCostMatrix(
+
+void LocalPlanner::getCostMatrix_(
     const PolarHistogram& histogram,
     const Eigen::Vector3f& position,
     const Eigen::Vector3f& velocity,
     Eigen::MatrixXf& cost_matrix,
-    cv::Mat& cost_image) const
-{
+    cv::Mat& cost_image
+) const {
+
     Eigen::MatrixXf distance_matrix(histogram.getElevRes(), histogram.getAzimRes());
     distance_matrix.fill(NAN);
 
@@ -328,7 +276,7 @@ void LocalPlanner::getCostMatrix(
         for (int azim = 0; azim < histogram.getAzimRes(); azim += step_size) {
             float obstacle_distance = histogram.getDistance(elev, azim);
             PolarPoint polar = convertHistogramIndexToPolar(elev, azim, histogram.getAlpha(), 1.0f); // unit vector of current direction
-            CostFunctionOutput costs = costFunction(polar, position, velocity, obstacle_distance);
+            CostFunctionOutput costs = costFunction_(polar, position, velocity, obstacle_distance);
             distance_matrix(elev, azim) = costs.distance_cost;
             cost_matrix(elev, azim) = costs.state_cost;
         }
@@ -372,10 +320,11 @@ void LocalPlanner::getCostMatrix(
         }
     }
 
-    this->generateCostImage(cost_matrix, distance_matrix, cost_image);
+    this->generateCostImage_(cost_matrix, distance_matrix, cost_image);
 }
 
-void LocalPlanner::getBestMoveDirections(const Eigen::MatrixXf& cost_matrix, std::vector<MoveDirection>& direction_list) const {
+
+void LocalPlanner::getBestMoveDirections_(const Eigen::MatrixXf& cost_matrix, std::vector<MoveDirection>& direction_list) const {
     direction_list.clear();
     for (int i = 0; i < cost_matrix.rows(); i++) {
         for (int j = 0; j < cost_matrix.cols(); j++) {
@@ -392,7 +341,8 @@ void LocalPlanner::getBestMoveDirections(const Eigen::MatrixXf& cost_matrix, std
     // @TODO get best direction candidates based on future predicted goal
 }
 
-void LocalPlanner::planNext() {
+
+void LocalPlanner::planNext_() {
 
     if (this->config_.skip_planning) {
         this->next_ = this->goal_pos_;
@@ -404,8 +354,8 @@ void LocalPlanner::planNext() {
     std::vector<MoveDirection> direction_list;
     direction_list.clear();
     
-    this->getCostMatrix(this->histogram_, this->position_, this->lin_velocity_, cost_matrix, cost_image);
-    this->getBestMoveDirections(cost_matrix, direction_list);
+    this->getCostMatrix_(this->histogram_, this->position_, this->velocity_, cost_matrix, cost_image);
+    this->getBestMoveDirections_(cost_matrix, direction_list);
 
     MoveDirection best_move = direction_list[0];
 
@@ -415,26 +365,16 @@ void LocalPlanner::planNext() {
 
     this->next_ = convertPolarToCartesian(PolarPoint(best_move.elevation, best_move.azimuth, step_size), this->position_);
 
-    this->cost_image_ = cost_image;
+    this->image_cost_ = cost_image;
 }
 
-void LocalPlanner::reset() {
 
-    this->state_updated_ = false;
-    this->goal_updated_ = false;
-    this->cloud_updated_ = false;
-
-    this->prev_goal_array_.clear();
-    this->extr_goal_array_.clear();
-
-    this->last_processing_time_ = std::chrono::system_clock::now();
-}
-
-void LocalPlanner::generateHistImage(
+void LocalPlanner::generateHistogramImage_(
     const PolarHistogram& histogram,
-    cv::Mat& image_data) const 
-{
-    float max_val = this->config_.sensor_max_range;
+    cv::Mat& image_data
+) const {
+
+    float max_val = this->config_.sensor_range_max;
 
     for (int e = this->histogram_.getElevRes() - 1; e >= 0; e--) {
         for (int z = this->histogram_.getAzimRes() - 1; z >=0; z--) {
@@ -449,11 +389,13 @@ void LocalPlanner::generateHistImage(
     }
 }
 
-void LocalPlanner::generateCostImage(
+
+void LocalPlanner::generateCostImage_(
     const Eigen::MatrixXf& cost_matrix,
     const Eigen::MatrixXf& distance_matrix,
-    cv::Mat& image_data) const 
-{
+    cv::Mat& image_data
+) const {
+
     float max_val = std::max(cost_matrix.maxCoeff(), distance_matrix.maxCoeff());
 
     for (int e = this->histogram_.getElevRes() - 1; e >= 0; e--) {
@@ -469,12 +411,5 @@ void LocalPlanner::generateCostImage(
     }
 }
 
-cv::Mat LocalPlanner::getHistImage() const {
-    return this->hist_image_;
-}
 
-cv::Mat LocalPlanner::getCostImage() const {
-    return this->cost_image_;
-}
-
-}  // namespace NAVIGATION_CORE
+} // namespace NAVIGATION_CORE

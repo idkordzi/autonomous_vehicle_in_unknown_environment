@@ -1,0 +1,9 @@
+#include "estimation_node.hpp"
+
+
+int main(int argc, char* argv[]) {
+    rclcpp::init(argc, argv);
+    rclcpp::spin(std::make_shared<NAVIGATION_ROS::EstimationModuleNode>(rclcpp::NodeOptions()));
+    rclcpp::shutdown();
+    return 0;
+}

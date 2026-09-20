@@ -5,10 +5,11 @@
 #include <vector>
 #include <stdexcept>
 
-#include "Eigen/Dense"
+#include "eigen3/Eigen/Dense"
 
 
 namespace NAVIGATION_CORE {
+
 
 struct HistogramCell {
     HistogramCell() {}
@@ -16,6 +17,7 @@ struct HistogramCell {
     float distance = 0.0f;
     float age = 0.0f;
 };
+
 
 class PolarHistogram {
 
@@ -92,6 +94,8 @@ public:
         if (x < 0) x += this->azim_dim_;
     }
 
+    friend class PolarHistogramTestClass;
+
 private:
 
     int alpha_    = 0.0f;
@@ -109,5 +113,6 @@ private:
     // }
 
 };
+
 
 } // namespace NAVIGATION_CORE

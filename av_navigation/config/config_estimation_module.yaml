@@ -1,0 +1,8 @@
+/av_estimation_node:
+    ros__parameters:
+        ros_node:
+            subs:
+                ekf: /odometry/filtered
+            pubs:
+                robot_pose: /robot/ekf/pose
+                robot_velocity: /robot/ekf/velocity

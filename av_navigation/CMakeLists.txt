@@ -1,53 +1,26 @@
 cmake_minimum_required(VERSION 3.15)
-project(av_navigation_ros VERSION 1.0.0)
-
-if (NOT DEFINED CMAKE_CUDA_ARCHITECTURES)
-  set(CMAKE_CUDA_ARCHITECTURES 86)
-endif()
+project(av_navigation_ros VERSION 1.0.0 LANGUAGES CXX CUDA)
 
 if(NOT CMAKE_CXX_STANDARD)
-  set(CMAKE_CXX_STANDARD 17)
-  set(CMAKE_CXX_STANDARD_REQUIRED ON)
+    set(CMAKE_CXX_STANDARD 20)
+    set(CMAKE_CXX_STANDARD_REQUIRED ON)
 endif()
 enable_language(CUDA)
 
 if(CMAKE_COMPILER_IS_GNUCXX OR CMAKE_CXX_COMPILER_ID MATCHES "Clang")
-  add_compile_options(-Wall -Wextra -Wpedantic)
+    add_compile_options(-Wall -Wextra -Wpedantic)
+endif()
+
+if (NOT DEFINED CMAKE_CUDA_ARCHITECTURES)
+    set(CMAKE_CUDA_ARCHITECTURES 86)
 endif()
 
 # ################################################################
 # Add external libraries
 # ################################################################
 
-# Download Eigen
-if(NOT DEFINED EIGEN_LIB_ROOT_PATH)
-  include(FetchContent)
-  set(EIGEN_LIB_ROOT_PATH "${CMAKE_CURRENT_BINARY_DIR}/_deps/lib_eigen_src")
-  message("Eigen library root path set to ${EIGEN_LIB_ROOT_PATH}")
-  if (NOT EXISTS ${EIGEN_LIB_ROOT_PATH})
-    FetchContent_Declare(
-      lib-eigen
-      GIT_REPOSITORY https://gitlab.com/libeigen/eigen.git
-      GIT_TAG 3.4.0
-      SOURCE_DIR "${EIGEN_LIB_ROOT_PATH}")
-    FetchContent_Populate(lib-eigen)
-  endif()
-endif()
-
-# # Download OpenCV library
-# if(NOT DEFINED OPENCV_LIB_ROOT_PATH)
-#   include(FetchContent)
-#   set(OPENCV_LIB_ROOT_PATH "${CMAKE_CURRENT_BINARY_DIR}/_deps/lib_opencv_src")
-#   message("OpenCV library root path set to ${OPENCV_LIB_ROOT_PATH}")
-#   FetchContent_Declare(
-#     lib-opencv
-#     GIT_REPOSITORY https://github.com/opencv/opencv.git
-#     GIT_TAG 4.11.0
-#     SOURCE_DIR "${OPENCV_LIB_ROOT_PATH}")
-#   FetchContent_MakeAvailable(lib-opencv)
-# endif()
-
 find_package(OpenCV REQUIRED)
+find_package(Eigen3 REQUIRED)
 
 find_package(ament_cmake REQUIRED)
 find_package(rclcpp REQUIRED)
@@ -59,7 +32,7 @@ find_package(tf2_geometry_msgs REQUIRED)
 find_package(std_msgs REQUIRED)
 find_package(geometry_msgs REQUIRED)
 find_package(sensor_msgs REQUIRED)
-find_package(drone_navigation_msgs REQUIRED)
+find_package(nav_msgs REQUIRED)
 
 find_package(cv_bridge REQUIRED)
 
@@ -69,115 +42,170 @@ find_package(cv_bridge REQUIRED)
 
 # Add core algorithm
 set(BUILD_FOR_ROS true)
-set(AV_NAVIGATION_CORE_LIB_ROOT_PATH "${CMAKE_CURRENT_SOURCE_DIR}/core")
+set(AV_NAVIGATION_CORE_ROOT_PATH "${CMAKE_CURRENT_SOURCE_DIR}/core")
 add_subdirectory(core)
 
 # ################################################################
 # Build nodes
 # ################################################################
 
-# Add av_vision_node
-set(TargetAvVisionNode av_vision_node)
-add_executable(${TargetAvVisionNode} 
-  ${CMAKE_CURRENT_SOURCE_DIR}/src/vision_module_ros/vision_node_exec.cpp 
-  ${CMAKE_CURRENT_SOURCE_DIR}/src/vision_module_ros/vision_node.cpp 
+# Add VISION node
+set(TARGET_AV_VISION_NODE av_vision_node)
+add_executable(${TARGET_AV_VISION_NODE}
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/vision_module_ros/vision_node.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/vision_module_ros/vision_node_exec.cpp
 )
-target_compile_features(${TargetAvVisionNode} PUBLIC cxx_std_17)
-ament_target_dependencies(${TargetAvVisionNode} 
-  PUBLIC 
-    rclcpp 
-    rclcpp_components 
-    geometry_msgs 
-    sensor_msgs 
-    cv_bridge 
+target_compile_features(${TARGET_AV_VISION_NODE} PUBLIC cxx_std_17)
+ament_target_dependencies(${TARGET_AV_VISION_NODE}
+    PUBLIC
+        rclcpp
+        rclcpp_components
+        geometry_msgs
+        sensor_msgs
+        cv_bridge
 )
-target_include_directories(${TargetAvVisionNode} 
-  PUBLIC 
-    ${OpenCV_INCLUDE_DIRS} 
-    ${cv_bridge_INCLUDE_DIRS} 
-    ${CMAKE_CURRENT_SOURCE_DIR}/include/vision_module_ros 
+target_include_directories(${TARGET_AV_VISION_NODE}
+    PUBLIC
+        ${OpenCV_INCLUDE_DIRS}
+        ${cv_bridge_INCLUDE_DIRS}
+        ${CMAKE_CURRENT_SOURCE_DIR}/include/vision_module_ros
 )
-target_link_libraries(${TargetAvVisionNode} 
-  PUBLIC 
-    ${OpenCV_LIBS} 
-    ${cv_bridge_LIBS} 
-    drone_camera_wrapper 
-    drone_yolo_wrapper 
-)
-
-# Add av_planner_node
-set(TargetAvPlannerNode av_planner_node)
-add_executable(${TargetAvPlannerNode} 
-  ${CMAKE_CURRENT_SOURCE_DIR}/src/planner_module_ros/planner_node_exec.cpp 
-  ${CMAKE_CURRENT_SOURCE_DIR}/src/planner_module_ros/planner_node.cpp 
-)
-target_compile_features(${TargetAvPlannerNode} PUBLIC cxx_std_17)
-ament_target_dependencies(${TargetAvPlannerNode} 
-  PUBLIC 
-    rclcpp 
-    rclcpp_components 
-    std_msgs 
-    geometry_msgs 
-    sensor_msgs 
-    cv_bridge 
-)
-target_include_directories(${TargetAvPlannerNode} 
-  PUBLIC 
-    ${OpenCV_INCLUDE_DIRS} 
-    ${EIGEN_LIB_ROOT_PATH} 
-    ${CMAKE_CURRENT_SOURCE_DIR}/include/planner_module_ros 
-)
-target_link_libraries(${TargetAvPlannerNode} 
-  PUBLIC 
-    ${OpenCV_LIBS} 
-    ${cv_bridge_LIBS} 
-    drone_vfh_planner 
+target_link_libraries(${TARGET_AV_VISION_NODE}
+    PUBLIC
+        ${OpenCV_LIBS}
+        ${cv_bridge_LIBS}
+        av_tracker
 )
 
-# Add av_control_node
-set(TargetAvControlNode av_control_node)
-add_executable(${TargetAvControlNode} 
-  ${CMAKE_CURRENT_SOURCE_DIR}/src/control_module_ros/control_node_exec.cpp 
-  ${CMAKE_CURRENT_SOURCE_DIR}/src/control_module_ros/control_node.cpp 
+# Add PLANNER node
+set(TARGET_AV_PLANNER_NODE av_planner_node)
+add_executable(${TARGET_AV_PLANNER_NODE}
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/planner_module_ros/planner_node.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/planner_module_ros/planner_node_exec.cpp
 )
-target_compile_features(${TargetAvControlNode} PUBLIC cxx_std_17)
-ament_target_dependencies(${TargetAvControlNode} 
-  PUBLIC 
-    rclcpp 
-    rclcpp_components 
-    tf2 
-    tf2_geometry_msgs 
-    geometry_msgs 
-    sensor_msgs 
-    drone_navigation_msgs 
+target_compile_features(${TARGET_AV_PLANNER_NODE} PUBLIC cxx_std_17)
+ament_target_dependencies(${TARGET_AV_PLANNER_NODE}
+    PUBLIC
+        rclcpp
+        rclcpp_components
+        std_msgs
+        geometry_msgs
+        sensor_msgs
+        cv_bridge
 )
-target_include_directories(${TargetAvControlNode} 
-  PUBLIC 
-    ${EIGEN_LIB_ROOT_PATH} 
-    ${CMAKE_CURRENT_SOURCE_DIR}/include/control_module_ros 
+target_include_directories(${TARGET_AV_PLANNER_NODE}
+    PUBLIC
+        ${OpenCV_INCLUDE_DIRS}
+        ${Eigen_INCLUDE_DIR}
+        ${CMAKE_CURRENT_SOURCE_DIR}/include/planner_module_ros
 )
-target_link_libraries(${TargetAvControlNode} 
-  PUBLIC 
-    drone_flight_controller 
-    drone_state_estimator 
-    drone_socket_udp 
+target_link_libraries(${TARGET_AV_PLANNER_NODE}
+    PUBLIC
+        ${OpenCV_LIBS}
+        ${cv_bridge_LIBS}
+        av_planner
+)
+
+# Add (POSE) ESTIMATION node
+set(TARGET_ESTIMATION_NODE av_estimation_node)
+add_executable(${TARGET_ESTIMATION_NODE}
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/estimation_module_ros/estimation_node.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/estimation_module_ros/estimation_node_exec.cpp
+)
+target_compile_features(${TARGET_ESTIMATION_NODE} PUBLIC cxx_std_17)
+ament_target_dependencies(${TARGET_ESTIMATION_NODE}
+    PUBLIC
+        rclcpp
+        rclcpp_components
+        geometry_msgs
+        nav_msgs
+)
+target_include_directories(${TARGET_ESTIMATION_NODE}  
+    PUBLIC
+        ${CMAKE_CURRENT_SOURCE_DIR}/include/estimation_module_ros
+)
+
+# Add CONTROLLER node
+set(TARGET_AV_CONTROL_NODE av_control_node)
+add_executable(${TARGET_AV_CONTROL_NODE}
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/control_module_ros/control_node.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/control_module_ros/control_node_exec.cpp
+)
+target_compile_features(${TARGET_AV_CONTROL_NODE} PUBLIC cxx_std_17)
+ament_target_dependencies(${TARGET_AV_CONTROL_NODE}
+    PUBLIC
+        rclcpp
+        rclcpp_components
+        geometry_msgs
+)
+target_include_directories(${TARGET_AV_CONTROL_NODE}  
+    PUBLIC
+        ${Eigen_INCLUDE_DIR}
+        ${CMAKE_CURRENT_SOURCE_DIR}/include/control_module_ros
+)
+target_link_libraries(${TARGET_AV_CONTROL_NODE}
+    PUBLIC
+        av_controller
+)
+
+# Add MOCK PUBLISHER node
+set(TARGET_MOCK_PUBLISHER_NODE mock_publisher_node)
+add_executable(${TARGET_MOCK_PUBLISHER_NODE}
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/mock_publisher_ros/mock_publisher_node.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/mock_publisher_ros/mock_publisher_node_exec.cpp
+)
+target_compile_features(${TARGET_MOCK_PUBLISHER_NODE} PUBLIC cxx_std_17)
+ament_target_dependencies(${TARGET_MOCK_PUBLISHER_NODE}
+    PUBLIC
+        rclcpp
+        rclcpp_components
+        geometry_msgs
+        sensor_msgs
+        nav_msgs
+)
+target_include_directories(${TARGET_MOCK_PUBLISHER_NODE}  
+    PUBLIC
+        ${CMAKE_CURRENT_SOURCE_DIR}/include/mock_publisher_ros
 )
 
 # ################################################################
 # Install files
 # ################################################################
 
-install(TARGETS 
-  ${TargetAvVisionNode} 
-  ${TargetAvPlannerNode} 
-  ${TargetAvControlNode} 
-  DESTINATION lib/${PROJECT_NAME} 
-)
-
 install(
-  DIRECTORY
-    config/
-  DESTINATION share/${PROJECT_NAME}/config
+    TARGETS
+        ${TARGET_AV_VISION_NODE}
+        ${TARGET_AV_PLANNER_NODE}
+        ${TARGET_ESTIMATION_NODE}
+        ${TARGET_AV_CONTROL_NODE}
+        ${TARGET_MOCK_PUBLISHER_NODE}
+    DESTINATION
+        lib/${PROJECT_NAME}
+)
+install(
+    DIRECTORY
+        config/
+    DESTINATION
+        share/${PROJECT_NAME}/config
+)
+install(
+    DIRECTORY
+        launch/
+    DESTINATION
+        share/${PROJECT_NAME}/launch
+)
+install(
+    DIRECTORY
+        launch/
+    DESTINATION
+        share/${PROJECT_NAME}/launch
+)
+install(
+    FILES
+        yolo/coco.names
+        yolo/yolo26m.onnx
+    DESTINATION
+        share/${PROJECT_NAME}/yolo
 )
 
 ament_package()

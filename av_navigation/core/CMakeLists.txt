@@ -1,53 +1,22 @@
 cmake_minimum_required(VERSION 3.15)
-project(av_navigation_core VERSION 1.0.0)
-
-if (NOT DEFINED CMAKE_CUDA_ARCHITECTURES)
-  set(CMAKE_CUDA_ARCHITECTURES 86)
-endif()
+project(av_navigation_core VERSION 1.0.0 LANGUAGES CXX CUDA)
 
 if(NOT CMAKE_CXX_STANDARD)
-  set(CMAKE_CXX_STANDARD 17)
-  set(CMAKE_CXX_STANDARD_REQUIRED ON)
+    set(CMAKE_CXX_STANDARD 20)
+    set(CMAKE_CXX_STANDARD_REQUIRED ON)
 endif()
-enable_language(CUDA)
 
 if(CMAKE_COMPILER_IS_GNUCXX OR CMAKE_CXX_COMPILER_ID MATCHES "Clang")
-  add_compile_options(-Wall -Wextra -Wpedantic)
+    add_compile_options(-Wall -Wextra -Wpedantic)
 endif()
 
-if(NOT DEFINED AV_NAVIGATION_CORE_LIB_ROOT_PATH)
-  set(AV_NAVIGATION_CORE_LIB_ROOT_PATH "${CMAKE_CURRENT_SOURCE_DIR}")
-  message("Core algorithm root path set to ${AV_NAVIGATION_CORE_LIB_ROOT_PATH}")
+if (NOT DEFINED CMAKE_CUDA_ARCHITECTURES)
+    set(CMAKE_CUDA_ARCHITECTURES 86)
 endif()
 
-# ################################################################
-# Download external libraries
-# ################################################################
-
-# Download ONNX runtime
-if(NOT DEFINED ONNXRUNTIME_LIB_ROOT_PATH)
-  set(ONNXRUNTIME_LIB_ROOT_PATH "${CMAKE_CURRENT_BINARY_DIR}/_deps/lib_onnx")
-  set(ONNXRUNTIME_DIR "${ONNXRUNTIME_LIB_ROOT_PATH}")
-  if (NOT EXISTS ${ONNXRUNTIME_DIR})
-    message("ONNX runtime root path set to ${ONNXRUNTIME_LIB_ROOT_PATH}")
-    file(MAKE_DIRECTORY ${ONNXRUNTIME_LIB_ROOT_PATH})
-    execute_process(COMMAND ${CMAKE_CURRENT_SOURCE_DIR}/onnx_download.sh 1.20.1 1 ${ONNXRUNTIME_LIB_ROOT_PATH})
-  endif()
-endif()
-
-# Download Eigen library
-if(NOT DEFINED EIGEN_LIB_ROOT_PATH)
-  include(FetchContent)
-  set(EIGEN_LIB_ROOT_PATH "${CMAKE_CURRENT_BINARY_DIR}/_deps/lib_eigen_src")
-  message("Eigen library root path set to ${EIGEN_LIB_ROOT_PATH}")
-  if (NOT EXISTS ${EIGEN_LIB_ROOT_PATH})
-    FetchContent_Declare(
-      lib-eigen
-      GIT_REPOSITORY https://gitlab.com/libeigen/eigen.git
-      GIT_TAG 3.4.0
-      SOURCE_DIR "${EIGEN_LIB_ROOT_PATH}")
-      FetchContent_Populate(lib-eigen)
-  endif()
+if(NOT DEFINED AV_NAVIGATION_CORE_ROOT_PATH)
+    set(AV_NAVIGATION_CORE_ROOT_PATH "${CMAKE_CURRENT_SOURCE_DIR}")
+    message("Core algorithm root path set to ${AV_NAVIGATION_CORE_ROOT_PATH}")
 endif()
 
 # ################################################################
@@ -55,166 +24,148 @@ endif()
 # ################################################################
 
 find_package(OpenCV REQUIRED)
+find_package(Eigen3 REQUIRED)
+
+# ################################################################
+# Download external libraries
+# ################################################################
+
+# Download ONNX runtime
+if(NOT DEFINED ONNXRUNTIME_ROOT_PATH)
+    set(ONNXRUNTIME_ROOT_PATH "${AV_NAVIGATION_CORE_ROOT_PATH}/onnxruntime")
+    message("ONNX RUNTIME root path set to ${ONNXRUNTIME_ROOT_PATH}")
+    if (NOT EXISTS ${ONNXRUNTIME_ROOT_PATH})
+        message("ONNX RUNTIME root dir not found - attempting to downlaod")
+        execute_process(COMMAND ${AV_NAVIGATION_CORE_ROOT_PATH}/onnx_download.sh 1.20.1 1 ${ONNXRUNTIME_ROOT_PATH})
+    endif()
+endif()
 
 # ################################################################
 # Build libraries
 # ################################################################
 
-# Add camera_wrapper
-set(TargetCameraWrapper drone_camera_wrapper)
-add_library(${TargetCameraWrapper}
-  STATIC
-    ${VEHICLE_NAVIGATION_CORE_LIB_ROOT_PATH}/src/vision_module/camera_wrapper.cpp
+# Add TRACKER
+set(TARGET_AV_TRACKER av_tracker)
+add_library(${TARGET_AV_TRACKER}
+    STATIC
+        ${AV_NAVIGATION_CORE_ROOT_PATH}/src/vision_module/tracker.cpp
 )
-target_compile_features(${TargetCameraWrapper} PUBLIC cxx_std_17)
-target_include_directories(${TargetCameraWrapper} 
-  PUBLIC 
-    ${OpenCV_INCLUDE_DIRS} 
-    ${EIGEN_LIB_ROOT_PATH} 
-    ${VEHICLE_NAVIGATION_CORE_LIB_ROOT_PATH}/include/vision_module 
+target_compile_features(${TARGET_AV_TRACKER} PUBLIC cxx_std_17)
+target_include_directories(${TARGET_AV_TRACKER}
+    PUBLIC
+        ${OpenCV_INCLUDE_DIRS}
+        ${Eigen_INCLUDE_DIR}
+        ${ONNXRUNTIME_ROOT_PATH}/include
+        ${AV_NAVIGATION_CORE_ROOT_PATH}/YOLOs-CPP/include
+        ${AV_NAVIGATION_CORE_ROOT_PATH}/include/vision_module
 )
-target_link_libraries(${TargetCameraWrapper} 
-  PUBLIC 
-    ${OpenCV_LIBS} 
-)
-
-# Add yolo_wrapper
-set(TargetYoloWrapper drone_yolo_wrapper)
-add_library(${TargetYoloWrapper}
-  STATIC
-    ${VEHICLE_NAVIGATION_CORE_LIB_ROOT_PATH}/src/vision_module/yolo_wrapper.cpp
-    ${VEHICLE_NAVIGATION_CORE_LIB_ROOT_PATH}/src/vision_module/yolo_detector.cpp
-)
-target_compile_features(${TargetYoloWrapper} PUBLIC cxx_std_17)
-target_include_directories(${TargetYoloWrapper} 
-  PUBLIC 
-    ${OpenCV_INCLUDE_DIRS} 
-    ${ONNXRUNTIME_DIR}/include 
-    ${EIGEN_LIB_ROOT_PATH} 
-    ${VEHICLE_NAVIGATION_CORE_LIB_ROOT_PATH}/include/vision_module 
-)
-target_link_libraries(${TargetYoloWrapper} 
-  PUBLIC 
-    ${OpenCV_LIBS} 
-    ${ONNXRUNTIME_DIR}/lib/libonnxruntime.so 
+target_link_libraries(${TARGET_AV_TRACKER}
+    PUBLIC
+        ${OpenCV_LIBS}
+        ${ONNXRUNTIME_ROOT_PATH}/lib/libonnxruntime.so
 )
 
-# Add vfh_planner CUDA kernels
-set(TargetVfhPlannerKernels drone_vfh_planner_kernels)
-add_library(${TargetVfhPlannerKernels}
-  STATIC
-    ${VEHICLE_NAVIGATION_CORE_LIB_ROOT_PATH}/src/planner_module/local_planner_kernels.cu
+# Add PLANNER CUDA kernels
+set(TARGET_AV_PLANNER_CUDA av_planner_cuda)
+add_library(${TARGET_AV_PLANNER_CUDA}
+    STATIC
+        ${AV_NAVIGATION_CORE_ROOT_PATH}/src/planner_module/local_planner_kernels.cu
 )
-target_compile_features(${TargetVfhPlannerKernels} PUBLIC cxx_std_17 cuda_std_17)
-target_include_directories(${TargetVfhPlannerKernels} 
-  PUBLIC 
-    ${VEHICLE_NAVIGATION_CORE_LIB_ROOT_PATH}/include/planner_module 
-)
-
-# Add vfh_planner
-set(TargetVfhPlanner drone_vfh_planner)
-add_library(${TargetVfhPlanner}
-  STATIC
-    ${VEHICLE_NAVIGATION_CORE_LIB_ROOT_PATH}/src/planner_module/local_planner.cpp 
-    ${VEHICLE_NAVIGATION_CORE_LIB_ROOT_PATH}/src/planner_module/polar_histogram.cpp
-    ${VEHICLE_NAVIGATION_CORE_LIB_ROOT_PATH}/src/planner_module/common.cpp
-)
-target_compile_features(${TargetVfhPlanner} PUBLIC cxx_std_17)
-target_include_directories(${TargetVfhPlanner} 
-  PUBLIC 
-    ${OpenCV_INCLUDE_DIRS} 
-    ${EIGEN_LIB_ROOT_PATH} 
-    ${VEHICLE_NAVIGATION_CORE_LIB_ROOT_PATH}/include/planner_module 
-)
-target_link_libraries(${TargetVfhPlanner} 
-  PUBLIC 
-    ${OpenCV_LIBS} 
-    ${TargetVfhPlannerKernels} 
+target_compile_features(${TARGET_AV_PLANNER_CUDA} PUBLIC cxx_std_17 cuda_std_17)
+target_compile_options(${TARGET_AV_PLANNER_CUDA} PUBLIC -Wno-pedantic)
+target_include_directories(${TARGET_AV_PLANNER_CUDA}
+    PUBLIC
+        ${AV_NAVIGATION_CORE_ROOT_PATH}/include/planner_module
 )
 
-# Add flight_controller
-set(TargetFlightController drone_flight_controller)
-add_library(${TargetFlightController}
-  STATIC
-    ${VEHICLE_NAVIGATION_CORE_LIB_ROOT_PATH}/src/control_module/flight_controller.cpp
-    ${VEHICLE_NAVIGATION_CORE_LIB_ROOT_PATH}/src/control_module/pid_controller.cpp
+# Add PLANNER
+set(TARGET_AV_PLANNER av_planner)
+add_library(${TARGET_AV_PLANNER}
+    STATIC
+        ${AV_NAVIGATION_CORE_ROOT_PATH}/src/planner_module/common.cpp
+        ${AV_NAVIGATION_CORE_ROOT_PATH}/src/planner_module/polar_histogram.cpp
+        ${AV_NAVIGATION_CORE_ROOT_PATH}/src/planner_module/local_planner.cpp 
 )
-target_compile_features(${TargetFlightController} PUBLIC cxx_std_17)
-target_include_directories(${TargetFlightController} 
-  PUBLIC 
-    ${EIGEN_LIB_ROOT_PATH} 
-    ${VEHICLE_NAVIGATION_CORE_LIB_ROOT_PATH}/include/control_module 
+target_compile_features(${TARGET_AV_PLANNER} PUBLIC cxx_std_17)
+target_include_directories(${TARGET_AV_PLANNER}
+    PUBLIC
+        ${OpenCV_INCLUDE_DIRS}
+        ${Eigen_INCLUDE_DIR}
+        ${AV_NAVIGATION_CORE_ROOT_PATH}/include/planner_module
 )
-
-# Add state_estimator
-set(TargetStateEstimator drone_state_estimator)
-add_library(${TargetStateEstimator}
-  STATIC
-    ${VEHICLE_NAVIGATION_CORE_LIB_ROOT_PATH}/src/control_module/state_estimator.cpp
-)
-target_compile_features(${TargetStateEstimator} PUBLIC cxx_std_17)
-target_include_directories(${TargetStateEstimator} 
-  PUBLIC 
-    ${EIGEN_LIB_ROOT_PATH} 
-    ${VEHICLE_NAVIGATION_CORE_LIB_ROOT_PATH}/include/control_module 
+target_link_libraries(${TARGET_AV_PLANNER}
+  PUBLIC
+    ${OpenCV_LIBS}
+    ${TARGET_AV_PLANNER_CUDA}
 )
 
-# Add UDP socket
-set(TargetSocketUDP drone_socket_udp)
-add_library(${TargetSocketUDP}
-  STATIC
-    ${VEHICLE_NAVIGATION_CORE_LIB_ROOT_PATH}/src/control_module/socket_udp.cpp
+# Add CONTROLLER
+set(TARGET_AV_CONTROLLER av_controller)
+add_library(${TARGET_AV_CONTROLLER}
+    STATIC
+        ${AV_NAVIGATION_CORE_ROOT_PATH}/src/control_module/pid.cpp
+        ${AV_NAVIGATION_CORE_ROOT_PATH}/src/control_module/controller.cpp
 )
-target_compile_features(${TargetSocketUDP} PUBLIC cxx_std_17)
-target_include_directories(${TargetSocketUDP} 
-  PUBLIC 
-    ${VEHICLE_NAVIGATION_CORE_LIB_ROOT_PATH}/include/control_module 
+target_compile_features(${TARGET_AV_CONTROLLER} PUBLIC cxx_std_17)
+target_include_directories(${TARGET_AV_CONTROLLER}
+    PUBLIC
+        ${Eigen_INCLUDE_DIR}
+        ${AV_NAVIGATION_CORE_ROOT_PATH}/include/control_module
 )
 
 # ################################################################
-# Build executables (test classes)
+# Build executables (tests)
 # ################################################################
 
-set(TargetDroneVisionTest drone_vision_test)
-add_executable(${TargetDroneVisionTest} 
-  ${OpenCV_INCLUDE_DIRS} 
-  ${ONNXRUNTIME_DIR}/include 
-  ${EIGEN_LIB_ROOT_PATH} 
-  ${VEHICLE_NAVIGATION_CORE_LIB_ROOT_PATH}/test/vision_module/drone_vision_test_class.cpp 
+# Test VISION
+set(TARGET_AV_VISION_TEST av_vision_test)
+add_executable(${TARGET_AV_VISION_TEST}
+    ${AV_NAVIGATION_CORE_ROOT_PATH}/test/vision_module/vision_module_test.cpp
 )
-target_compile_features(${TargetDroneVisionTest} PUBLIC cxx_std_17)
-target_link_libraries(${TargetDroneVisionTest} 
-  PUBLIC 
-    ${OpenCV_LIBS} 
-    ${ONNXRUNTIME_DIR}/lib/libonnxruntime.so 
-    ${TargetYoloWrapper} 
+target_compile_features(${TARGET_AV_VISION_TEST} PUBLIC cxx_std_17)
+target_include_directories(${TARGET_AV_VISION_TEST}
+    PUBLIC
+        ${OpenCV_INCLUDE_DIRS}
+        ${Eigen_INCLUDE_DIR}
+        ${ONNXRUNTIME_ROOT_PATH}/include
 )
-
-set(TargetDronePlannerTest drone_planner_test)
-add_executable(${TargetDronePlannerTest} 
-  ${OpenCV_INCLUDE_DIRS} 
-  ${EIGEN_LIB_ROOT_PATH} 
-  ${VEHICLE_NAVIGATION_CORE_LIB_ROOT_PATH}/test/planner_module/drone_planner_test_class.cpp 
-)
-target_compile_features(${TargetDronePlannerTest} PUBLIC cxx_std_17)
-target_link_libraries(${TargetDronePlannerTest} 
-  PUBLIC 
-    ${OpenCV_LIBS} 
-    ${TargetVfhPlanner} 
+target_link_libraries(${TARGET_AV_VISION_TEST} 
+    PUBLIC
+        ${OpenCV_LIBS}
+        ${ONNXRUNTIME_ROOT_PATH}/lib/libonnxruntime.so
+        ${TARGET_AV_TRACKER}
 )
 
-set(TargetDroneControllerTest drone_controller_test)
-add_executable(${TargetDroneControllerTest} 
-  ${OpenCV_INCLUDE_DIRS} 
-  ${EIGEN_LIB_ROOT_PATH} 
-  ${VEHICLE_NAVIGATION_CORE_LIB_ROOT_PATH}/test/control_module/drone_control_test_class.cpp 
+# Test PLANNER
+set(TARGET_AV_PLANNER_TEST av_planner_test)
+add_executable(${TARGET_AV_PLANNER_TEST}
+    ${AV_NAVIGATION_CORE_ROOT_PATH}/test/planner_module/planner_module_test.cpp
 )
-target_compile_features(${TargetDroneControllerTest} PUBLIC cxx_std_17)
-target_link_libraries(${TargetDroneControllerTest} 
-  PUBLIC 
-    ${OpenCV_LIBS} 
-    ${TargetFlightController} 
-    ${TargetStateEstimator} 
+target_compile_features(${TARGET_AV_PLANNER_TEST} PUBLIC cxx_std_17)
+target_include_directories(${TARGET_AV_PLANNER_TEST}
+    PUBLIC
+        ${OpenCV_INCLUDE_DIRS}
+        ${Eigen_INCLUDE_DIR}
+)
+target_link_libraries(${TARGET_AV_PLANNER_TEST}
+    PUBLIC
+        ${OpenCV_LIBS}
+        ${TARGET_AV_PLANNER}
+)
+
+# Test CONTROLLER
+set(TARGET_AV_CONTROL_TEST av_control_test)
+add_executable(${TARGET_AV_CONTROL_TEST}
+    ${AV_NAVIGATION_CORE_ROOT_PATH}/test/control_module/control_module_test.cpp
+)
+target_compile_features(${TARGET_AV_CONTROL_TEST} PUBLIC cxx_std_17)
+target_include_directories(${TARGET_AV_CONTROL_TEST}
+    PUBLIC
+        ${Eigen_INCLUDE_DIR}
+)
+target_link_libraries(${TARGET_AV_CONTROL_TEST}
+    PUBLIC
+        ${TARGET_AV_CONTROLLER}
 )
 
 # ################################################################
@@ -222,25 +173,12 @@ target_link_libraries(${TargetDroneControllerTest}
 # ################################################################
 
 if(BUILD_FOR_ROS)
-  install(TARGETS 
-    ${TargetCameraWrapper} 
-    ${TargetYoloWrapper} 
-    ${TargetVfhPlanner} 
-    ${TargetFlightController} 
-    ${TargetStateEstimator} 
-    ${TargetSocketUDP} 
-    DESTINATION lib/${PROJECT_NAME}
-  )
-
-  install(
-    DIRECTORY
-      yolo/models/
-    DESTINATION share/${PROJECT_NAME}/yolo/models
-  )
-
-  install(
-    DIRECTORY
-      yolo/labels/
-    DESTINATION share/${PROJECT_NAME}/yolo/labels
-  )
+    install(
+        TARGETS 
+            ${TARGET_AV_TRACKER} 
+            ${TARGET_AV_PLANNER} 
+            ${TARGET_AV_CONTROLLER}  
+        DESTINATION
+            lib/${PROJECT_NAME}
+    )
 endif()

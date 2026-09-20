@@ -3,6 +3,7 @@
 
 namespace NAVIGATION_CORE_KERNELS {
 
+
 __global__ void cudaKernelClearHistogram(
     float* distance_histogram,
     float* age_histogram,
@@ -18,6 +19,7 @@ __global__ void cudaKernelClearHistogram(
         counter_[id] = 0;
     }
 }
+
 
 __global__ void cudaKernelProcessIncomingPointCloud(
     float* point_cloud,
@@ -43,8 +45,8 @@ __global__ void cudaKernelProcessIncomingPointCloud(
         float p_azim = atan2f(y, x) * rad2deg;
         float p_radi = sqrtf(x*x + y*y + z*z);
 
-        unsigned h_azim = min((unsigned)floorf((p_azim + 180.0f) / alpha), (unsigned)360/alpha-1);
-        unsigned h_elev = min((unsigned)floorf((p_elev + 90.0f) / alpha), (unsigned)180/alpha-1);
+        unsigned h_azim = min((unsigned)floorf((p_azim + 180.0f) / alpha), (unsigned)360/alpha-(unsigned)1);
+        unsigned h_elev = min((unsigned)floorf((p_elev + 90.0f) / alpha), (unsigned)180/alpha-(unsigned)1);
         unsigned hi = h_elev*histogram_width + h_azim;
 
         atomicAdd(&distance_histogram[hi], p_radi);
@@ -52,13 +54,16 @@ __global__ void cudaKernelProcessIncomingPointCloud(
     }
 }
 
+
 LocalPlannerKernels::LocalPlannerKernels(KernelsConfig config) : config_(config) {
     this->initializeKernels();
 }
 
+
 LocalPlannerKernels::~LocalPlannerKernels() {
     this->freeMemory();
 }
+
 
 void LocalPlannerKernels::initializeKernels() {
     unsigned histogram_size = this->config_.flat_size;
@@ -77,6 +82,7 @@ void LocalPlannerKernels::initializeKernels() {
 
     this->initialized_ = true;
 }
+
 
 void LocalPlannerKernels::processIncomingPointCloud(const float* incoming_cloud, unsigned cloud_size)
 {
@@ -125,6 +131,7 @@ void LocalPlannerKernels::processIncomingPointCloud(const float* incoming_cloud,
     cudaMemcpy(this->h_counter_, this->d_counter_, histogram_size*sizeof(int), cudaMemcpyDeviceToHost);
 }
 
+
 void LocalPlannerKernels::freeMemory() {
     free(this->h_distance_histogram_);
     free(this->h_age_histogram_);
@@ -136,5 +143,6 @@ void LocalPlannerKernels::freeMemory() {
     cudaFree(this->d_age_histogram_);
     cudaFree(this->d_counter_);
 }
+
 
 } // namespace NAVIGATION_CORE_KERNELS
