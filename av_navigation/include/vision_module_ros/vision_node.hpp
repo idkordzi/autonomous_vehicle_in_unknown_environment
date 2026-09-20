@@ -34,7 +34,7 @@ struct VisionModuleNodeConfig {
     std::string pub_vision_cloud = "/robot/vision/cloud";
     std::string pub_vision_goal = "/robot/vision/goal";
 
-    float thread_freq = 10.0f; // [Hz]
+    float thread_freq = 30.0f; // [Hz]
     bool follow_mode = false;
 };
 

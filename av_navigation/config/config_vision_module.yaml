@@ -10,14 +10,14 @@
                 vision_target: /robot/vision/target
                 vision_cloud: /robot/vision/cloud
                 vision_goal: /robot/vision/goal
-            thread_freq: 10.0
+            thread_freq: 1.0
         follow:
             enable: true
             distance: 0.3 # [m]
         tracker:
             frame_width: 1280
             frame_height: 720
-            enable_cuda: true
+            enable_cuda: false
             yolo_input_width: 640
             yolo_input_height: 640
             yolo_model_path: install/av_navigation_ros/share/av_navigation_ros/yolo/yolo26m.onnx

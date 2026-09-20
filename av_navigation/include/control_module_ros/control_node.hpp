@@ -26,7 +26,7 @@ struct ControlModuleNodeConfig {
 
     std::string pub_robot_velocity = "/robot/control/velocity";
 
-    float thread_freq = 50.0f; // [Hz]
+    float thread_freq = 100.0f; // [Hz]
 };
 
 class ControlModuleNode : public rclcpp::Node {

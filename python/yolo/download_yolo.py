@@ -57,5 +57,5 @@ def save_yolo_model(
 
 if __name__ == "__main__":
     save_yolo_model(
-        model="yolo26s"
+        model="yolo26m"
     )

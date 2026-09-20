@@ -230,21 +230,19 @@ protected:
 
 int main() {
 
+    NAVIGATION_CORE::ControllerConfig controller_config = {};
+    controller_config.reg_forward_Kp = 1.0f;
+    controller_config.reg_forward_Ki = 0.0f;
+    controller_config.reg_forward_Kd = 0.0f;
+    controller_config.reg_forward_max_abs = INFINITY;
+    controller_config.reg_rotate_Kp = 1.0f;
+    controller_config.reg_rotate_Ki = 0.0f;
+    controller_config.reg_rotate_Kd = 0.0f;
+    controller_config.reg_rotate_max_abs = INFINITY;
+    controller_config.max_pos_err_ang_off = 0.1f;
+    controller_config.execution_time = 0.1f;
+
     NAVIGATION_CORE::ControllerTestClass controller_test_class = NAVIGATION_CORE::ControllerTestClass();
-
-    NAVIGATION_CORE::ControllerConfig controller_config = {
-        .reg_forward_Kp = 1.0f,
-        .reg_forward_Ki = 0.0f,
-        .reg_forward_Kd = 0.0f,
-        .reg_forward_max_abs = INFINITY,
-        .reg_rotate_Kp = 1.0f,
-        .reg_rotate_Ki = 0.0f,
-        .reg_rotate_Kd = 0.0f,
-        .reg_rotate_max_abs = INFINITY,
-        .max_pos_err_ang_off = 0.1f,
-        .execution_time = 0.1f
-    };
-
     controller_test_class.initController(controller_config);
     controller_test_class.testStandstill();
     controller_test_class.testMoveForward();

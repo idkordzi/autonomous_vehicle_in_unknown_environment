@@ -3,6 +3,8 @@ from ultralytics import YOLO
 from ultralytics.engine.results import Results as YOLOResults
 import cv2
 import numpy as np
+import time
+from typing import Union
 
 
 def prep_image():
@@ -64,8 +66,46 @@ def test_yolo():
     cv2.imshow("Output preview", cimg)
     cv2.waitKey(0)
     cv2.destroyAllWindows()
-  
+
+
+def run_loops(model: YOLO, image: np.ndarray, device: Union[str, int], loops: int):
+
+        print(f"[TEST] Run test on {loops:d} loops")
+        tic = time.perf_counter_ns()
+        for _ in range(loops):
+            _ = model.predict(source=image, device=device, verbose=False)
+        toc = time.perf_counter_ns()
+        average_time = (toc - tic) / loops * 1e-9
+        print(f"> average time: {average_time:0.6f} [s]")
+
+
+def test_yolo_timing():
+
+    # GPU: 0
+    # CPU: "cpu"
+    DEVICE = 0
+
+    yolo_files: Path = Path(__file__).parents[1].resolve() / "files/yolo"
+    
+    model_path: Path = yolo_files / "models/yolo26m.onnx"
+    image_path: Path = yolo_files / "dataset/inputs/test_image.jpg"
+
+    print("[INFO] Initialize YOLO model")
+    test_model: YOLO = YOLO(model_path, task="detect")
+
+    print("[INFO] Read test image")
+    test_image: np.ndarray = cv2.imread(image_path.as_posix(), cv2.IMREAD_COLOR)
+
+    print("[INFO] Run warmup inference")
+    for _ in range(5):
+        _ = test_model.predict(source=test_image, device=DEVICE, verbose=False)
+
+    run_loops(model=test_model, image=test_image, device=DEVICE, loops=10)
+    run_loops(model=test_model, image=test_image, device=DEVICE, loops=100)
+    run_loops(model=test_model, image=test_image, device=DEVICE, loops=1000)
+
 
 if __name__ == "__main__":
     # prep_image()
     test_yolo()
+    # test_yolo_timing()

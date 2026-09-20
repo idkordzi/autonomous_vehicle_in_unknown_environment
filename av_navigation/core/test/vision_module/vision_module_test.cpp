@@ -197,23 +197,19 @@ int main() {
     std::string labels_path = "test_data/vision_module/dataset/labels/coco.names";
     std::string output_path = "test_data/vision_module/dataset/outputs/test_image_results.jpg";
 
+    NAVIGATION_CORE::TrackerConfig tracker_config = {};
+    tracker_config.yolo_model_path = model_path;
+    tracker_config.yolo_labels_path = labels_path;
+    tracker_config.following_mode = true;
+    tracker_config.following_distance = 0.3f;
+
     NAVIGATION_CORE::TrackerTestClass tracker_test_class = NAVIGATION_CORE::TrackerTestClass();
-    
+    tracker_test_class.initTracker(tracker_config);
     tracker_test_class.testReadImage(image_path, false);
     tracker_test_class.testReadLabels(labels_path);
-    
-    NAVIGATION_CORE::TrackerConfig config = {
-        .yolo_model_path = model_path,
-        .yolo_labels_path = labels_path,
-        .following_mode = true,
-        .following_distance = 0.3f
-    };
-    tracker_test_class.initTracker(config);
-
     tracker_test_class.testInference(image_path, labels_path);
     tracker_test_class.testDrawDetections(image_path, labels_path, output_path, false);
     tracker_test_class.testTiming(image_path);
-
     tracker_test_class.testFollowing();
     
     return 0;

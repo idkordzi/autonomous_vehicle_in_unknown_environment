@@ -10,7 +10,7 @@
                 planner_goal: "/robot/planner/goal"
                 planner_image_histogram: "/robot/planner/image/histogram"
                 planner_image_cost: "/robot/planner/image/cost"
-            thread_freq: 10.0
+            thread_freq: 5.0
         
         planner:
             enable_cuda: true

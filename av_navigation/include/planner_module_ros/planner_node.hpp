@@ -34,7 +34,7 @@ struct PlannerModuleNodeConfig {
     std::string pub_planner_image_histogram = "/robot/planner/image/histogram";
     std::string pub_planner_image_cost = "/robot/planner/image/cost";
 
-    float thread_freq = 20.0f;
+    float thread_freq = 50.0f;
 };
 
 

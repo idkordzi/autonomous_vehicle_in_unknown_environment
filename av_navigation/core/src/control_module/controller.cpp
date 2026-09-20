@@ -11,22 +11,20 @@ Controller::Controller(ControllerConfig config) : config_(config) {
 
 void Controller::initialize_() {
 
-    PIDConfig reg_forward_config = {
-        .Kp = this->config_.reg_forward_Kp,
-        .Ki = this->config_.reg_forward_Ki,
-        .Kd = this->config_.reg_forward_Kd,
-        .out_min = -this->config_.reg_forward_max_abs,
-        .out_max = this->config_.reg_forward_max_abs
-    };
-    PIDConfig reg_rotate_config = {
-        .Kp = this->config_.reg_rotate_Kp,
-        .Ki = this->config_.reg_rotate_Ki,
-        .Kd = this->config_.reg_rotate_Kd,
-        .out_min = -this->config_.reg_rotate_max_abs,
-        .out_max = this->config_.reg_rotate_max_abs
-    };
-
+    PIDConfig reg_forward_config = {};
+    reg_forward_config.Kp = this->config_.reg_forward_Kp;
+    reg_forward_config.Ki = this->config_.reg_forward_Ki;
+    reg_forward_config.Kd = this->config_.reg_forward_Kd;
+    reg_forward_config.out_min = -this->config_.reg_forward_max_abs;
+    reg_forward_config.out_max = this->config_.reg_forward_max_abs;
     this->reg_forward_ = std::make_unique<PID>(reg_forward_config);
+
+    PIDConfig reg_rotate_config = {};
+    reg_rotate_config.Kp = this->config_.reg_rotate_Kp;
+    reg_rotate_config.Ki = this->config_.reg_rotate_Ki;
+    reg_rotate_config.Kd = this->config_.reg_rotate_Kd;
+    reg_rotate_config.out_min = -this->config_.reg_rotate_max_abs;
+    reg_rotate_config.out_max = this->config_.reg_rotate_max_abs;
     this->reg_rotate_ = std::make_unique<PID>(reg_rotate_config);
 
     this->goal_position_ = Eigen::Vector3f::Zero();

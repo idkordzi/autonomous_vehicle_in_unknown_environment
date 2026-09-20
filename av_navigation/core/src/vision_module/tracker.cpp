@@ -104,7 +104,7 @@ void Tracker::predict_future_target_() {
             mean_velocity += partial;
         }
     if (velocity.size() > 0)
-        mean_velocity /= velocity.size();
+        mean_velocity /= (float)velocity.size();
 
     std::vector<Eigen::Vector3f> acceleration = {};
     Eigen::Vector3f mean_acceleration = Eigen::Vector3f(0.0f, 0.0f, 0.0f);
@@ -119,7 +119,7 @@ void Tracker::predict_future_target_() {
             mean_acceleration += partial;
         }
     if (acceleration.size() > 0)
-        mean_acceleration /= acceleration.size();
+        mean_acceleration /= (float)acceleration.size();
 
     float t = this->config_.execution_time;
     this->predicted_target_ = this->current_target_ + (mean_velocity * t) + (mean_acceleration * t * t * 0.5);

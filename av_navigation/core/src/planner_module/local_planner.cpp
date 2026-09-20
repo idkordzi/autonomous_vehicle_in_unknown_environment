@@ -48,8 +48,13 @@ void LocalPlanner::setState(Eigen::Vector3f position, Eigen::Vector4f orientatio
 void LocalPlanner::setTarget(Eigen::Vector3f goal) {
 
     Eigen::Vector3f new_goal = goal;
-    if ((this->goal_ - new_goal).norm() > this->config_.goal_dev_margin) {
+    if (this->it_since_last_update_ > 0 || (this->goal_ - new_goal).norm() > this->config_.goal_dev_margin) {
+
         this->goal_ = new_goal;
+
+        if (this->target_array_.size() >= this->config_.max_past_targets)
+            this->target_array_.pop_back();
+        this->target_array_.insert(this->target_array_.cbegin(), new_goal);
 
         PolarPoint facing_goal = convertCartesianToPolar(this->goal_, this->position_);
         PolarPoint desired_pos = PolarPoint(
@@ -59,11 +64,12 @@ void LocalPlanner::setTarget(Eigen::Vector3f goal) {
         );
         wrapPolar(desired_pos);
         this->goal_pos_ = convertPolarToCartesian(desired_pos, this->goal_);
+
         this->goal_updated_ = true;
+        this->it_since_last_update_ = 0;
     }
     else
         this->goal_updated_ = false;
-    
 }
 
 
@@ -76,6 +82,12 @@ void LocalPlanner::setPointCloud(PointCloud<PointXYZ>& cloud) {
 
 
 void LocalPlanner::run() {
+
+    if (!this->goal_updated_) {
+        this->goal_ = this->predict_next_target_();
+        this->goal_updated_ = false;
+        this->it_since_last_update_ += 1;
+    }
 
     // away from goal position
     if ((this->goal_pos_-this->position_).norm() > this->config_.robot_pos_margin) {
@@ -126,6 +138,52 @@ void LocalPlanner::reset() {
     this->last_processing_time_ = std::chrono::system_clock::now();
 
     this->histogram_.clear();
+
+    this->target_array_.clear();
+    this->it_since_last_update_ = 0;
+}
+
+
+Eigen::Vector3f LocalPlanner::predict_next_target_() {
+
+    Eigen::Vector3f latest_target = Eigen::Vector3f::Zero();
+    if (this->target_array_.size() > 0)
+        latest_target = this->target_array_[0];
+
+    std::vector<Eigen::Vector3f> velocity_array = {};
+    Eigen::Vector3f mean_velocity = Eigen::Vector3f(0.0f, 0.0f, 0.0f);
+    if (this->target_array_.size() > 1)
+        for (unsigned i = 1; i < this->target_array_.size(); i++) {
+            Eigen::Vector3f partial = Eigen::Vector3f(
+                this->target_array_[i].x() - this->target_array_[i-1].x(),
+                this->target_array_[i].y() - this->target_array_[i-1].y(),
+                this->target_array_[i].z() - this->target_array_[i-1].z()
+            );
+            velocity_array.push_back(partial);
+            mean_velocity += partial;
+        }
+    if (velocity_array.size() > 0)
+        mean_velocity /= (float)velocity_array.size();
+
+    std::vector<Eigen::Vector3f> acceleration_array = {};
+    Eigen::Vector3f mean_acceleration = Eigen::Vector3f(0.0f, 0.0f, 0.0f);
+    if (velocity_array.size() > 1)
+        for (unsigned i = 1; i < velocity_array.size(); i++) {
+            Eigen::Vector3f partial = Eigen::Vector3f(
+                velocity_array[i].x() - velocity_array[i-1].x(),
+                velocity_array[i].y() - velocity_array[i-1].y(),
+                velocity_array[i].z() - velocity_array[i-1].z()
+            );
+            acceleration_array.push_back(partial);
+            mean_acceleration += partial;
+        }
+    if (acceleration_array.size() > 0)
+        mean_acceleration /= (float)acceleration_array.size();
+
+    float t = this->config_.execution_time * (float)(1 + this->it_since_last_update_);
+    Eigen::Vector3f predicted_target = latest_target + (mean_velocity * t) + (mean_acceleration * t * t * 0.5);
+
+    return predicted_target;
 }
 
 

@@ -22,6 +22,9 @@ struct LocalPlannerConfig {
     bool skip_planning = false;
     float execution_time = 0.1f; // [s]
 
+    // target prediction
+    int max_past_targets = 10;
+
     // camera params
     float sensor_range_min = 0.1f; // [m]
     float sensor_range_max = 8.0f; // [m]
@@ -107,6 +110,8 @@ protected:
 
     void initialize_();
 
+    Eigen::Vector3f predict_next_target_();
+
     void processPointCloud_();
 
     CostFunctionOutput costFunction_(
@@ -167,6 +172,9 @@ protected:
 
     cv::Mat image_histogram_ = {};
     cv::Mat image_cost_ = {};
+
+    std::vector<Eigen::Vector3f> target_array_ = {};
+    int it_since_last_update_ = 0;
 };
 
 

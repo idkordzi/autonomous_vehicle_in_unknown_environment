@@ -514,12 +514,11 @@ int main() {
     polar_histogram_test_class.initHistogram(alpha);
     polar_histogram_test_class.testUpdateCells();
 
-    NAVIGATION_CORE::LocalPlannerConfig planner_config = {
-        .enable_cuda = true,
-        .goal_dev_margin = 0.1,
-        .goal_min_dist = 1.0,
-        .planning_step = 1.0
-    };
+    NAVIGATION_CORE::LocalPlannerConfig planner_config = {};
+    planner_config.enable_cuda = true;
+    planner_config.goal_dev_margin = 0.1f;
+    planner_config.goal_min_dist = 1.0f;
+    planner_config.planning_step = 1.0f;
 
     NAVIGATION_CORE::PlannerTestClass planner_test_class = NAVIGATION_CORE::PlannerTestClass();
     planner_test_class.initPlanner(planner_config);
