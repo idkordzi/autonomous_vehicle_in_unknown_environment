@@ -4,9 +4,9 @@
             sensors:
                 camera:
                     pubs:
-                        color: /robot/sensors/camera/color
-                        depth: /robot/sensors/camera/depth
-                        cloud: /robot/sensors/camera/cloud
+                        color: /camera/color/image_raw
+                        depth: /camera/depth/image_raw
+                        cloud: /camera/depth/points
                     freq: 30.0
                     image:
                         width: 1280

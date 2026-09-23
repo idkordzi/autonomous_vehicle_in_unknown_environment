@@ -2,9 +2,9 @@
     ros__parameters:
         ros_node:
             subs:
-                camera_color: /robot/sensors/camera/color
-                camera_depth: /robot/sensors/camera/depth
-                camera_cloud: /robot/sensors/camera/cloud
+                camera_color: /camera/color/image_raw
+                camera_depth: /camera/depth/image_raw
+                camera_cloud: /camera/depth/points
                 robot_pose: /robot/ekf/pose
             pubs:
                 vision_target: /robot/vision/target
@@ -15,14 +15,19 @@
             enable: true
             distance: 0.3 # [m]
         tracker:
-            frame_width: 1280
-            frame_height: 720
+            frame_width: 640
+            frame_height: 480
+            mode: 0 # 'color-wise', 'yolo'
+            color_cb_mean: 110
+            color_cb_dev: 20
+            color_cr_mean: 185
+            color_cr_dev: 20
             enable_cuda: false
             yolo_input_width: 640
             yolo_input_height: 640
             yolo_model_path: install/av_navigation_ros/share/av_navigation_ros/yolo/yolo26m.onnx
             yolo_labels_path: install/av_navigation_ros/share/av_navigation_ros/yolo/coco.names
-            yolo_search_classes: [2, 7]
+            yolo_search_classes: [2, 3, 7]
             yolo_min_confidence: 0.5
             mean_circle_radius: 10 # [px]
             max_past_positions: 10

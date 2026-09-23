@@ -21,12 +21,19 @@ struct TrackerConfig {
     unsigned frame_width = 1280;
     unsigned frame_height = 720;
 
+    unsigned mode = 1;
+
+    unsigned color_cb_mean = 0;
+    unsigned color_cr_mean = 0;
+    unsigned color_cb_dev = 0;
+    unsigned color_cr_dev = 0;
+
     bool enable_cuda = true;
     std::string yolo_model_path = "yolo26m.onnx";
     std::string yolo_labels_path = "coco.names";
     unsigned yolo_input_width = 640;
     unsigned yolo_input_height = 640;
-    std::vector<unsigned> yolo_search_classes = {2, 7}; // COCO class, default: "car", "truck"
+    std::vector<unsigned> yolo_search_classes = {2, 3, 7}; // COCO class, default: "car", "motorbike", "truck"
     float yolo_min_confidence = 0.5f; // probability in range (0,1)
     
     unsigned mean_circle_radius = 10; // [px]

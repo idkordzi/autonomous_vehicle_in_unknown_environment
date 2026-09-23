@@ -61,9 +61,9 @@ def generate_launch_description():
 
     ld.add_action(node_vision)
     ld.add_action(node_planner)
-    ld.add_action(node_ekf)
+    # ld.add_action(node_ekf)  # should be available on Husarion
     ld.add_action(node_estimation)
     ld.add_action(node_control)
-    # ld.add_action(mock_publisher_node) # use to provide simple input data
+    # ld.add_action(mock_publisher_node)  # use to provide simple input data
 
     return ld

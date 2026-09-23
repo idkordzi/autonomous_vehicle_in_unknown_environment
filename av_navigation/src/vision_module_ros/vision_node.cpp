@@ -298,6 +298,13 @@ void VisionModuleNode::declareRosParameters() {
 
     this->declare_parameter("tracker.frame_width", rclcpp::PARAMETER_INTEGER);
     this->declare_parameter("tracker.frame_height", rclcpp::PARAMETER_INTEGER);
+    this->declare_parameter("tracker.mode", rclcpp::PARAMETER_INTEGER);
+
+    this->declare_parameter("tracker.color_cb_mean", rclcpp::PARAMETER_INTEGER);
+    this->declare_parameter("tracker.color_cb_dev", rclcpp::PARAMETER_INTEGER);
+    this->declare_parameter("tracker.color_cr_mean", rclcpp::PARAMETER_INTEGER);
+    this->declare_parameter("tracker.color_cr_dev", rclcpp::PARAMETER_INTEGER);
+
     this->declare_parameter("tracker.enable_cuda", rclcpp::PARAMETER_BOOL);
     this->declare_parameter("tracker.yolo_input_width", rclcpp::PARAMETER_INTEGER);
     this->declare_parameter("tracker.yolo_input_height", rclcpp::PARAMETER_INTEGER);
@@ -330,6 +337,13 @@ void VisionModuleNode::initializeComponents() {
 
     this->tracker_config_.frame_width  = (unsigned)(this->get_parameter("tracker.frame_width").as_int());
     this->tracker_config_.frame_height = (unsigned)(this->get_parameter("tracker.frame_height").as_int());
+    this->tracker_config_.mode = (unsigned)(this->get_parameter("tracker.mode").as_int());
+
+    this->tracker_config_.color_cb_mean = (unsigned)(this->get_parameter("tracker.color_cb_mean").as_int());
+    this->tracker_config_.color_cb_dev = (unsigned)(this->get_parameter("tracker.color_cb_dev").as_int());
+    this->tracker_config_.color_cr_mean = (unsigned)(this->get_parameter("tracker.color_cr_mean").as_int());
+    this->tracker_config_.color_cr_dev = (unsigned)(this->get_parameter("tracker.color_cr_dev").as_int());
+
     this->tracker_config_.enable_cuda = this->get_parameter("tracker.enable_cuda").as_bool();
     this->tracker_config_.yolo_input_width  = (unsigned)(this->get_parameter("tracker.yolo_input_width").as_int());
     this->tracker_config_.yolo_input_height = (unsigned)(this->get_parameter("tracker.yolo_input_height").as_int());

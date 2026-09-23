@@ -52,7 +52,7 @@ void LocalPlanner::setTarget(Eigen::Vector3f goal) {
 
         this->goal_ = new_goal;
 
-        if (this->target_array_.size() >= this->config_.max_past_targets)
+        if ((int)this->target_array_.size() >= this->config_.max_past_targets)
             this->target_array_.pop_back();
         this->target_array_.insert(this->target_array_.cbegin(), new_goal);
 

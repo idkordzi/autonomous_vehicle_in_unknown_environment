@@ -10,11 +10,13 @@ Tracker::Tracker(TrackerConfig config) : config_(config) {
 
 
 void Tracker::initialize_() {
-    this->detector_ = std::make_unique<yolos::YOLO26Detector>(
-        this->config_.yolo_model_path,
-        this->config_.yolo_labels_path,
-        this->config_.enable_cuda
-    );
+    if (this->config_.mode == 1) {
+            this->detector_ = std::make_unique<yolos::YOLO26Detector>(
+            this->config_.yolo_model_path,
+            this->config_.yolo_labels_path,
+            this->config_.enable_cuda
+        );
+    }
 }
 
 
@@ -22,16 +24,67 @@ std::vector<yolos::Detection> Tracker::detect_target_on_image_(
     const cv::Mat& image
 ) const {
 
-    std::vector<yolos::Detection> results =
-        this->detector_->detect(image, this->config_.yolo_min_confidence);
-
     std::vector<yolos::Detection> results_filtered = {};
-    for (unsigned i = 0; i < results.size(); i++) {
-        for (unsigned c : this->config_.yolo_search_classes) {
-            if (results[i].classId == (int)c)
-                results_filtered.push_back(results[i]);
+    if (this->config_.mode == 0) {
+
+        cv::Mat image_ycc;
+        cv::cvtColor(image, image_ycc, cv::COLOR_BGR2YCrCb);
+
+        unsigned
+            cb_min = this->config_.color_cb_mean - this->config_.color_cb_dev,
+            cb_max = this->config_.color_cb_mean + this->config_.color_cb_dev,
+            cr_min = this->config_.color_cr_mean - this->config_.color_cr_dev,
+            cr_max = this->config_.color_cr_mean + this->config_.color_cr_dev;
+        int
+            b_left = INT_MAX,
+            b_right = INT_MIN,
+            b_up = INT_MAX,
+            b_down = INT_MIN;
+        bool detected = false;
+
+        for (int ri = 0; ri < (int)this->config_.frame_height; ri++) {
+            for (int wi = 0; wi < (int)this->config_.frame_width; wi++) {
+                cv::Vec<uint8_t, 3> px = image_ycc.at< cv::Vec<uint8_t, 3> >(ri, wi);
+                if (px[1] > cb_min && px[1] < cb_max && px[2] > cr_min && px[2] < cr_max) {
+                    if (wi < b_left) b_left = wi;
+                    if (wi > b_right) b_right = wi;
+                    if (ri < b_up) b_up = ri;
+                    if (ri > b_down) b_down = ri;
+                    detected = true;
+                }
+            }
+        }
+        if (detected) {
+            results_filtered.push_back(
+                yolos::Detection(
+                    yolos::BoundingBox(
+                        b_left,
+                        b_up,
+                        b_right-b_left,
+                        b_down-b_up
+                    ),
+                    1.0f,
+                    (int)this->config_.yolo_search_classes[0]
+                )
+            );
         }
     }
+
+    else if (this->config_.mode == 1) {
+
+        cv::Mat image_rgb;
+        cv::cvtColor(image, image_rgb, cv::COLOR_BGR2RGB);
+
+        std::vector<yolos::Detection> results =
+            this->detector_->detect(image_rgb, this->config_.yolo_min_confidence);
+        for (unsigned i = 0; i < results.size(); i++) {
+            for (unsigned c : this->config_.yolo_search_classes) {
+                if (results[i].classId == (int)c)
+                    results_filtered.push_back(results[i]);
+            }
+        }
+    }
+
     return results_filtered;
 }
 

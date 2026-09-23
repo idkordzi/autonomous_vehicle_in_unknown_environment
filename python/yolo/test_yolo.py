@@ -27,7 +27,7 @@ def test_yolo():
     yolo_files: Path = Path(__file__).parents[1].resolve() / "files/yolo"
 
     model_path: Path = yolo_files / "models/yolo26m.onnx"
-    image_path: Path = yolo_files / "dataset/inputs/test_image.jpg"
+    image_path: Path = yolo_files / "dataset/inputs/frame.png"
     labels_path: Path = yolo_files / "dataset/labels/coco.names"
 
     MIN_CONF: float = 0.2

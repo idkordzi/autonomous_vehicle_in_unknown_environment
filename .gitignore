@@ -12,6 +12,7 @@ av_navigation/yolo
 python/files/yolo/dataset/inputs
 python/files/yolo/dataset/outputs
 python/files/yolo/models
+python/files/yolo/videos
 python/files/evaluation
 
 build
