@@ -1,3 +1,4 @@
+import time
 from pathlib import Path
 from tqdm import tqdm
 import numpy as np
@@ -234,18 +235,23 @@ class ArucoStreamer:
                 cv2.rectangle(frame_copy, (0, h-1-tsz[1]-2), (tsz[0]+2, h-1), (0,0,0), -1)
                 cv2.putText(frame_copy, txt, (1, h-2), cv2.FONT_HERSHEY_SIMPLEX, 0.8, (255, 255, 255), 2)
 
+                timestamp: float = float(time.time_ns())
                 if robot_position is None:
-                    robot_position = np.array([np.nan, np.nan])
+                    robot_position = np.array([timestamp, np.nan, np.nan, np.nan])
+                else:
+                    robot_position = np.array([timestamp, robot_position[0], robot_position[1], np.nan])
                 if target_position is None:
-                    target_position = np.array([np.nan, np.nan])
+                    target_position = np.array([timestamp, np.nan, np.nan, np.nan])
+                else:
+                    target_position = np.array([timestamp, target_position[0], target_position[1], np.nan])
 
                 cache_robot.append(robot_position)
                 cache_target.append(target_position)
                 rec_cnt += 1
 
                 if rec_cnt >= record_size:
-                    np.save(f"robot_{batch_cnt}.npy", np.array(cache_robot))
-                    np.save(f"target_{batch_cnt}.npy", np.array(cache_target))
+                    np.save(f"aruco_robot_{batch_cnt}.npy", np.array(cache_robot))
+                    np.save(f"aruco_target_{batch_cnt}.npy", np.array(cache_target))
                     cache_robot = []
                     cache_target = []
                     rec_cnt = 0
@@ -263,18 +269,13 @@ class ArucoStreamer:
             cv2.imshow("stream", frame_copy)
             k = cv2.waitKey(1)
             if k & 0xFF == 27: # ESC pressed
-                if record_position and rec_enable: 
-                    np.save(f"robot_{batch_cnt}.npy", np.array(cache_robot))
-                    np.save(f"target_{batch_cnt}.npy", np.array(cache_target))
-                    cache_robot = []
-                    cache_target = []
                 break
             if k & 0xFF == ord("r"):
                 rec_enable = not rec_enable
 
-        if len(cache_robot) and len(cache_target):
-            np.save(f"robot_{batch_cnt}.npy", np.array(cache_robot))
-            np.save(f"target_{batch_cnt}.npy", np.array(cache_target))
+        if record_position and rec_enable and len(cache_robot) and len(cache_target):
+            np.save(f"aruco_robot_{batch_cnt}.npy", np.array(cache_robot))
+            np.save(f"aruco_target_{batch_cnt}.npy", np.array(cache_target))
 
 
 def _get_mock_arena() -> np.ndarray:

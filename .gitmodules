@@ -1,3 +1,6 @@
 [submodule "av_navigation/core/YOLOs-CPP"]
 	path = av_navigation/core/YOLOs-CPP
 	url = https://github.com/Geekgineer/YOLOs-CPP.git
+[submodule "av_simulation/modules/rosbot_ros"]
+	path = av_simulation/modules/rosbot_ros
+	url = https://github.com/husarion/rosbot_ros.git
